@@ -17,22 +17,23 @@ from klampt.model.create import primitives
 
 world = klampt.WorldModel()
 DEBUG = False
-TIMING = False
+TIMING = True
 
 def main():
     global world
     obj = world.makeRigidObject("tm")
     g = obj.geometry()
-    g.loadFile("rod.off")
+    g.loadFile("lumps.off")
     ws = WipeSurface("tm", obj)
     oort = 1/(2**0.5)
-    ws.obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
+    #ws.obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
-    wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
-    #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
+    wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
+    #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
+    wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
 
     # sim = klampt.Simulator(world)
     # sim.setGravity((0,0,0))
@@ -49,13 +50,13 @@ def main():
     # wiper_body.enableDynamics(False)
     # wiper_body.setVelocity([0,0,0], [0,0.0,0])
 
-    sizes = [30, 30, 50]
+    sizes = [10, 30, 50]
     c_lims = [2e-3, 1e-4, 5e-5]
     RUNS = 1
     if TIMING:
         RUNS = 11
-    for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=1e10,
+    for i in range(len(sizes)):
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0,
             c_lim=1e-5)
         start_time = time.monotonic()
         for j in range(RUNS):
@@ -76,8 +77,8 @@ def main():
     ws.update_infection(np.logical_not(covered).astype(np.float32))
     ws.update_colors()
     #wiper.wipe_step(wiper.obj.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.95]), ws)
-    #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [-0.1,-0.1,0.05])
-    wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.2,0,0])
+    wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [-0.1,-0.1,0.05])
+    #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.2,0,0])
 
     vis.add("world", world)
     vis.show()
@@ -196,18 +197,19 @@ class WipeSurface:
         opt_e = time.monotonic()
 
         clean_s = time.monotonic()
-        covered_triangles = np.zeros(self.num_triangles)
         contact = (np.abs(h_val - min_h) / np.abs(min_h)) < 1e-3
         covered_vertices = np.zeros(len(self.verts))
         for i in range(wiper.tot):
-            if contact[i] and h_t_correspondence[i] > -1:
-                covered_triangles[h_t_correspondence[i]] = 1
+            tind = h_t_correspondence[i]
+            if contact[i] and tind > -1:
+                covered_vertices[self.inds[tind, :]] = 1
+        covered_triangles = np.sum(covered_vertices[self.inds], axis=1) >= 3
         clean_e = time.monotonic()
         if TIMING:
             wiper.ray_t.append(ray_e - ray_s)
             wiper.opt_t.append(opt_e - opt_s)
         self.covered = covered_triangles
-        return self.covered, np.zeros(len(self.verts))
+        return self.covered, covered_vertices
 
     def clear_covered(self):
         self.covered = np.zeros(self.num_triangles)
