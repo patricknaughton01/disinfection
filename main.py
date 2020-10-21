@@ -19,12 +19,13 @@ from klampt.model.create import primitives
 world = klampt.WorldModel()
 DEBUG = False
 TIMING = False
+DISPLAY = False
 
 def main():
     global world
     obj = world.makeRigidObject("tm")
     g = obj.geometry()
-    g.loadFile("keys.off")
+    g.loadFile("lumps.off")
     ws = WipeSurface("tm", obj)
     oort = 1/(2**0.5)
     #ws.obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
@@ -52,13 +53,11 @@ def main():
     # wiper_body.setVelocity([0,0,0], [0,0.0,0])
 
     sizes = [30, 30, 50]
-    c_lims = [2e-3, 1e-4, 5e-5]
     RUNS = 1
     if TIMING:
         RUNS = 11
     for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=100,
-            c_lim=1e-5)
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=300)
         start_time = time.monotonic()
         for j in range(RUNS):
             covered = ws.get_covered_triangles(wiper)[0]
@@ -80,27 +79,27 @@ def main():
     #wiper.wipe_step(wiper.obj.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.95]), ws)
     wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [-0.1,-0.1,0.05])
     #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.2,0,0])
-
-    vis.add("world", world)
-    vis.show()
-    while vis.shown():
-        # sim.simulate(dt)
-        # R, t = wiper.obj.getTransform()
-        # if state == "left":
-        #     if t[1] < max:
-        #         move_t = list(t[:])
-        #         move_t[1] += step
-        #         wiper.wipe_step((R,t), (R, move_t), ws)
-        #     else:
-        #         state = "right"
-        # elif state == "right":
-        #     if t[1] > min:
-        #         move_t = list(t[:])
-        #         move_t[1] -= step
-        #         wiper.wipe_step((R,t), (R,move_t), ws)
-        #     else:
-        #         state = "stop"
-        time.sleep(dt)
+    if DISPLAY:
+        vis.add("world", world)
+        vis.show()
+        while vis.shown():
+            # sim.simulate(dt)
+            # R, t = wiper.obj.getTransform()
+            # if state == "left":
+            #     if t[1] < max:
+            #         move_t = list(t[:])
+            #         move_t[1] += step
+            #         wiper.wipe_step((R,t), (R, move_t), ws)
+            #     else:
+            #         state = "right"
+            # elif state == "right":
+            #     if t[1] > min:
+            #         move_t = list(t[:])
+            #         move_t[1] -= step
+            #         wiper.wipe_step((R,t), (R,move_t), ws)
+            #     else:
+            #         state = "stop"
+            time.sleep(dt)
 
 
 class WipeSurface:
@@ -113,6 +112,7 @@ class WipeSurface:
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
         self.num_triangles = len(self.inds)
+        # self.build_triangle_adjacency()
         self.infection_level = np.ones(self.num_triangles)
         #self.infection_level[0] = 0
         self.obj.appearance().setColor(0.0, 0.0, 1.0)
@@ -120,6 +120,22 @@ class WipeSurface:
         self.covered = np.zeros(self.num_triangles)
         self.hit_dist_thresh = 0
         self.epsilon = 1e-5
+
+    def build_triangle_adjacency(self):
+        self.v_map = {}
+        for i in range(len(self.verts)):
+            self.v_map[i] = np.nonzero(np.sum(self.inds == i, axis=1))
+        self.t_neighbors = -np.ones((self.inds.shape))
+        for i in range(self.num_triangles):
+            count = {}
+            for j in range(len(self.inds[i])):
+                for k, id in enumerate(self.v_map[j]):
+                    if id in count:
+                        count[id] += 1
+                    else:
+                        count[id] = 1
+            print(count)
+            break
 
     def get_covered_triangles(self, wiper):
         global world, DEBUG
@@ -165,7 +181,7 @@ class WipeSurface:
                 primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
         clean_s = time.monotonic()
-        contact = (np.abs(h_val - min_h) / np.abs(min_h)) < 1e-3
+        contact = np.abs(h_val - min_h) < 1e-3
         covered_vertices = np.zeros(len(self.verts))
         for i in range(wiper.tot):
             tind = h_t_correspondence[i]
@@ -199,7 +215,7 @@ class WipeSurface:
 
 class Wiper:
     def __init__(self, obj, compliance=0.01, gamma_0=0.5, beta_0=1.0, rows=10,
-        cols=10, lam=0, s_lim=1e0, c_lim=1e0
+        cols=10, lam=0
     ):
         self.obj = obj
         self.compliance = compliance
@@ -213,15 +229,6 @@ class Wiper:
         self.cols = cols
         self.tot = self.rows * self.cols
         self.Q = None
-        self.off_diag = -np.ones(self.tot)
-        for i in range(0, self.tot, self.cols):
-            self.off_diag[i] = 0
-        self.borders = [
-            sparse.diags([-1], [-self.cols], shape=(self.tot, self.tot)),
-            sparse.diags([-1], [self.cols], shape=(self.tot, self.tot)),
-            sparse.diags([self.off_diag[1:]], [-1], shape=(self.tot, self.tot)),
-            sparse.diags([self.off_diag[1:]], [1], shape=(self.tot, self.tot))
-        ]
         self.init_Q()
         # plt.spy(self.Q)
         # plt.show()
@@ -229,8 +236,6 @@ class Wiper:
         self.width = 0.1
         self.height = 0.1
         self.lam = lam
-        self.s_lim = s_lim
-        self.c_lim = c_lim
         self.top_point_offsets = np.zeros((self.tot, 3))
         for i in range(self.rows):
             for j in range(self.cols):
