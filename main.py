@@ -15,6 +15,7 @@ from klampt import math
 from klampt import io
 from klampt.vis import colorize
 from klampt.model.create import primitives
+from multiprocessing import Manager, Process, Pool
 
 world = klampt.WorldModel()
 DEBUG = False
@@ -112,7 +113,12 @@ class WipeSurface:
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
         self.num_triangles = len(self.inds)
-        # self.build_triangle_adjacency()
+        self.v_map = None
+        self.t_neighbors = None
+        # st = time.monotonic()
+        self.build_triangle_adjacency()
+        # et = time.monotonic()
+        # print(f"Building triangle adjacency took {et - st} seconds")
         self.infection_level = np.ones(self.num_triangles)
         #self.infection_level[0] = 0
         self.obj.appearance().setColor(0.0, 0.0, 1.0)
@@ -122,20 +128,48 @@ class WipeSurface:
         self.epsilon = 1e-5
 
     def build_triangle_adjacency(self):
-        self.v_map = {}
-        for i in range(len(self.verts)):
-            self.v_map[i] = np.nonzero(np.sum(self.inds == i, axis=1))
+        # vs = time.monotonic()
+        procs = 16
+        n = len(self.verts)
+        chunks = []
+        for i in range(procs):
+            chunks.append((
+                i * (n // (procs - 1)), min( (i+1) * (n // (procs-1)), n ),
+                self.inds
+            ))
+        with Pool(procs) as p:
+            mylist = p.map(self.build_vertex_adjancency, chunks)
+        self.v_map = []
+        for l in mylist:
+            self.v_map.extend(l)
+        # ve = time.monotonic()
+        # print(f"Vertices: {ve - vs}")
+        # ts = time.monotonic()
         self.t_neighbors = -np.ones((self.inds.shape))
         for i in range(self.num_triangles):
             count = {}
             for j in range(len(self.inds[i])):
-                for k, id in enumerate(self.v_map[j]):
+                for k, id in enumerate(self.v_map[self.inds[i][j]]):
                     if id in count:
                         count[id] += 1
                     else:
                         count[id] = 1
-            print(count)
-            break
+            ind = 0
+            for j, (k,v) in enumerate(count.items()):
+                if v == 2:
+                    self.t_neighbors[i][ind] = k
+                    ind += 1
+                if ind == 3:
+                    break
+        # te = time.monotonic()
+        # print(f"Triangles: {te - ts}")
+
+    @staticmethod
+    def build_vertex_adjancency(arg):
+        vlist = []
+        for i in range(arg[0], arg[1]):
+            vlist.append(np.nonzero(arg[2] == i)[0])
+        return vlist
 
     def get_covered_triangles(self, wiper):
         global world, DEBUG
@@ -211,6 +245,14 @@ class WipeSurface:
     def update_colors(self):
         colorize.colorize(self.obj, self.infection_level,
             colormap="jet", feature="faces")
+
+
+
+# def build_vertex_adjancency(start, end, inds):
+#     vlist = []
+#     for i in range(start, end):
+#         vlist.append(np.nonzero(inds == i)[0])
+#     return vlist
 
 
 class Wiper:
