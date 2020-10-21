@@ -246,35 +246,6 @@ class Wiper:
         self.opt_t = []
 
     def init_Q(self):
-        # self.Q = 4 * np.eye(self.tot)
-        # for i in range(self.rows):
-        #     for j in range(self.cols):
-        #         ind = self.cols * i + j
-        #         if i == 0 or i == self.rows-1:
-        #             if j == 0 or j == self.cols-1:
-        #                 # Set corners to 2
-        #                 self.Q[ind, ind] = 2
-        #             else:
-        #                 # Edges to 3
-        #                 self.Q[ind, ind] = 3
-        #         elif j == 0 or j == self.cols - 1:
-        #             # Other edges
-        #             self.Q[ind, ind] = 3
-        #         # Neighboring terms
-        #         if j+1 < self.cols:
-        #             self.Q[ind, ind+1] = -1
-        #             self.Q[ind+1, ind] = -1
-        #         if j-1 >= 0:
-        #             self.Q[ind, ind-1] = -1
-        #             self.Q[ind-1, ind] = -1
-        #         if i+1 < self.rows:
-        #             self.Q[ind, ind+self.cols] = -1
-        #             self.Q[ind+self.cols, ind] = -1
-        #         if i-1 >= 0:
-        #             self.Q[ind, ind-self.cols] = -1
-        #             self.Q[ind-self.cols, ind] = -1
-        # self.Q = sparse.dia_matrix(self.Q)
-        # POSSIBLE ALTERNATE VECTORIZED IMPLEMENTATION
         # Border terms
         self.Q = sparse.diags([-1,-1], [-self.cols, self.cols],
             shape=(self.tot, self.tot))
