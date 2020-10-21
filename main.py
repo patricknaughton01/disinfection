@@ -1,5 +1,6 @@
 import klampt
 import time
+import sys
 import numpy as np
 import cvxpy as cp
 import faulthandler
@@ -17,13 +18,13 @@ from klampt.model.create import primitives
 
 world = klampt.WorldModel()
 DEBUG = False
-TIMING = True
+TIMING = False
 
 def main():
     global world
     obj = world.makeRigidObject("tm")
     g = obj.geometry()
-    g.loadFile("lumps.off")
+    g.loadFile("keys.off")
     ws = WipeSurface("tm", obj)
     oort = 1/(2**0.5)
     #ws.obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
@@ -50,13 +51,13 @@ def main():
     # wiper_body.enableDynamics(False)
     # wiper_body.setVelocity([0,0,0], [0,0.0,0])
 
-    sizes = [10, 30, 50]
+    sizes = [30, 30, 50]
     c_lims = [2e-3, 1e-4, 5e-5]
     RUNS = 1
     if TIMING:
         RUNS = 11
-    for i in range(len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0,
+    for i in range(1):#len(sizes)):
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=100,
             c_lim=1e-5)
         start_time = time.monotonic()
         for j in range(RUNS):
@@ -144,7 +145,7 @@ class WipeSurface:
                 pt = np.array(pt)
                 if DEBUG:
                     primitives.sphere(0.001, pt, world=world).appearance().setColor(0,1,0)
-                min_h[i] = wiper.max_h - np.linalg.norm(start_pt - pt)
+                min_h[i] = np.max(wiper.max_h - np.linalg.norm(start_pt - pt), 0)
                 h_t_correspondence[i] = hit
         ray_e = time.monotonic()
         # Solve opt problem to find contacted triangles
@@ -156,45 +157,12 @@ class WipeSurface:
         prob = cp.Problem(objective, constraints)
         result = prob.solve()
         h_val = h.value
-        # Use curvature limiting to find contacted triangles
-        # h = cp.Variable(wiper.tot)
-        # objective = cp.Minimize(cp.sum(h))
-        # constraints = [h <= wiper.max_h, h >= min_h]
-        # # Adjacent row slope limits
-        # A = sparse.diags([[1], [-1]], offsets=[0, wiper.cols],
-        #         shape=(wiper.tot-wiper.cols, wiper.tot))
-        # constraints.append(A @ h <= wiper.s_lim)
-        # constraints.append(A @ h >= -wiper.s_lim)
-        # # Adjacent column slope limits
-        # s_lim_arr = wiper.s_lim * np.ones(wiper.tot)
-        # for i in range(0, wiper.tot, wiper.cols):
-        #     s_lim_arr[i] = wiper.max_h
-        # s_lim_arr = np.roll(s_lim_arr, -1)
-        # A = sparse.diags([[1], wiper.off_diag[1:]], offsets=[0, 1],
-        #         shape=(wiper.tot, wiper.tot))
-        # constraints.append(A @ h <= s_lim_arr)
-        # constraints.append(A @ h >= -s_lim_arr)
-        # # Row curvature limits
-        # A = sparse.diags([[-1], [2], [-1]],
-        #         offsets=[0, wiper.cols, 2*wiper.cols],
-        #         shape=(wiper.tot-2*wiper.cols, wiper.tot))
-        # constraints.append(A @ h <= wiper.c_lim)
-        # constraints.append(A @ h >= -wiper.c_lim)
-        # # Column curvature limits
-        # c_lim_arr = wiper.c_lim * np.ones(wiper.tot)
-        # for i in range(0, wiper.tot, wiper.cols):
-        #     c_lim_arr[i] = 2 * wiper.max_h
-        #     c_lim_arr[i+1] = 2 * wiper.max_h
-        # c_lim_arr = np.roll(c_lim_arr, -1)
-        # A = sparse.diags([wiper.off_diag[1:], [2], wiper.off_diag[1:]],
-        #         offsets=[-1, 0, 1],
-        #         shape=(wiper.tot, wiper.tot))
-        # constraints.append(A @ h <= c_lim_arr)
-        # constraints.append(A @ h >= -c_lim_arr)
-        # prob = cp.Problem(objective, constraints)
-        # result = prob.solve(solver=cp.ECOS, verbose=False)
-        # h_val = h.value
         opt_e = time.monotonic()
+
+        if DEBUG:
+            for i in range(wiper.tot):
+                pt = np.array(t) + wiper.top_point_offsets[i] + (wiper.max_h - h_val[i]) * wiper.norm
+                primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
         clean_s = time.monotonic()
         contact = (np.abs(h_val - min_h) / np.abs(min_h)) < 1e-3
@@ -323,7 +291,7 @@ class Wiper:
             # Top row
             self.Q[i, i] = 3
             # Bottom row
-            ind = (self.rows - 1) * self.cols
+            ind = (self.rows - 1) * self.cols + i
             self.Q[ind, ind] = 3
         for i in range(self.rows):
             # First col
