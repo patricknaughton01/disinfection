@@ -18,7 +18,7 @@ from klampt.model.create import primitives
 
 world = klampt.WorldModel()
 DEBUG = False
-TIMING = True
+TIMING = False
 DISPLAY = True
 
 def main():
@@ -51,12 +51,12 @@ def main():
     # wiper_body.enableDynamics(False)
     # wiper_body.setVelocity([0,0,0], [0,0.0,0])
 
-    sizes = [10, 30, 50]
+    sizes = [30, 30, 50]
     RUNS = 1
     if TIMING:
         RUNS = 11
-    for i in range(len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=100)
+    for i in range(1):#len(sizes)):
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=1000)
         #wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
         # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
