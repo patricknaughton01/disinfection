@@ -145,7 +145,7 @@ class WipeSurface:
         # ve = time.monotonic()
         # print(f"Vertices: {ve - vs}")
         # ts = time.monotonic()
-        self.t_neighbors = -np.ones((self.inds.shape))
+        self.t_neighbors = -np.ones((self.inds.shape), dtype=long)
         for i in range(self.num_triangles):
             count = {}
             for j in range(len(self.inds[i])):
@@ -168,7 +168,7 @@ class WipeSurface:
     def build_vertex_adjancency(arg):
         vlist = []
         for i in range(arg[0], arg[1]):
-            vlist.append(np.nonzero(arg[2] == i)[0])
+            vlist.append(np.nonzero(arg[2] == i)[0].astype(long))
         return vlist
 
     def get_covered_triangles(self, wiper):
@@ -195,8 +195,10 @@ class WipeSurface:
                 pt = np.array(pt)
                 if DEBUG:
                     primitives.sphere(0.001, pt, world=world).appearance().setColor(0,1,0)
-                min_h[i] = np.max(wiper.max_h - np.linalg.norm(start_pt - pt), 0)
-                h_t_correspondence[i] = hit
+                min_h[i] = wiper.max_h - np.linalg.norm(start_pt - pt)
+                if min_h[i] >= 0:
+                    h_t_correspondence[i] = hit
+        min_h = np.max(min_h, 0)
         ray_e = time.monotonic()
         # Solve opt problem to find contacted triangles
         opt_s = time.monotonic()
@@ -217,10 +219,15 @@ class WipeSurface:
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
         covered_vertices = np.zeros(len(self.verts))
+        covered_triangles = np.zeros(self.num_triangles)
+        visited = np.zeros(self.num_triangles)
         for i in range(wiper.tot):
             tind = h_t_correspondence[i]
-            if contact[i] and tind > -1:
+            if tind > -1:
+                self.interpolate_contact(tind, wiper, visited, contact,
+                    covered_triangles)
                 covered_vertices[self.inds[tind, :]] = 1
+            break
         covered_triangles = np.sum(covered_vertices[self.inds], axis=1) >= 3
         clean_e = time.monotonic()
         if TIMING:
@@ -228,6 +235,12 @@ class WipeSurface:
             wiper.opt_t.append(opt_e - opt_s)
         self.covered = covered_triangles
         return self.covered, covered_vertices
+
+    def interpolate_contact(self, triangle, wiper, visited, grid, cover):
+        if visited[triangle]:
+            return
+        visited[triangle] = 1
+        centroid = np.mean(self.verts[self.inds[triangle]], axis=0)
 
     def clear_covered(self):
         self.covered = np.zeros(self.num_triangles)
@@ -245,14 +258,6 @@ class WipeSurface:
     def update_colors(self):
         colorize.colorize(self.obj, self.infection_level,
             colormap="jet", feature="faces")
-
-
-
-# def build_vertex_adjancency(start, end, inds):
-#     vlist = []
-#     for i in range(start, end):
-#         vlist.append(np.nonzero(inds == i)[0])
-#     return vlist
 
 
 class Wiper:
