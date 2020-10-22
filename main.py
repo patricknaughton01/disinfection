@@ -129,23 +129,16 @@ class WipeSurface:
 
     def build_triangle_adjacency(self):
         # vs = time.monotonic()
-        procs = 16
-        n = len(self.verts)
-        chunks = []
-        for i in range(procs):
-            chunks.append((
-                i * (n // (procs - 1)), min( (i+1) * (n // (procs-1)), n ),
-                self.inds
-            ))
-        with Pool(procs) as p:
-            mylist = p.map(self.build_vertex_adjancency, chunks)
         self.v_map = []
-        for l in mylist:
-            self.v_map.extend(l)
+        for i in range(len(self.verts)):
+            self.v_map.append([])
+        for i in range(self.num_triangles):
+            for j in range(len(self.inds[i])):
+                self.v_map[self.inds[i][j]].append(i)
         # ve = time.monotonic()
         # print(f"Vertices: {ve - vs}")
         # ts = time.monotonic()
-        self.t_neighbors = -np.ones((self.inds.shape), dtype=long)
+        self.t_neighbors = -np.ones((self.inds.shape), dtype=np.int64)
         for i in range(self.num_triangles):
             count = {}
             for j in range(len(self.inds[i])):
@@ -161,15 +154,9 @@ class WipeSurface:
                     ind += 1
                 if ind == 3:
                     break
+            # assert ind==3, f"Only found {ind} neighbors for triangle {i}"
         # te = time.monotonic()
         # print(f"Triangles: {te - ts}")
-
-    @staticmethod
-    def build_vertex_adjancency(arg):
-        vlist = []
-        for i in range(arg[0], arg[1]):
-            vlist.append(np.nonzero(arg[2] == i)[0].astype(long))
-        return vlist
 
     def get_covered_triangles(self, wiper):
         global world, DEBUG
