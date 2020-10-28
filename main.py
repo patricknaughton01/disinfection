@@ -24,11 +24,11 @@ DISPLAY = True
 def main():
     global world
     obj = world.makeRigidObject("tm")
+    oort = 1/(2**0.5)
+    # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
     g.loadFile("keys.off")
     ws = WipeSurface("tm", obj)
-    oort = 1/(2**0.5)
-    #ws.obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
@@ -40,7 +40,7 @@ def main():
     # sim.setGravity((0,0,0))
     dt = 0.1
     step = 0.01
-    max = 1.0
+    max = 0.3
     min = -0.1
     state = "left"
 
@@ -51,56 +51,58 @@ def main():
     # wiper_body.enableDynamics(False)
     # wiper_body.setVelocity([0,0,0], [0,0.0,0])
 
-    sizes = [30, 30, 50]
-    RUNS = 1
-    if TIMING:
-        RUNS = 11
-    for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=1000)
-        #wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
-        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
-        # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
-        #                0.0000000,  1.0000000,  0.0000000,
-        #                0.4968801,  0.0000000,  0.8678192 ],
-        #     [0.01,0.01,0.1])
-
-        covered = ws.get_covered_triangles(wiper)[0]
-        if TIMING:
-            start_time = time.monotonic()
-            for j in range(RUNS):
-                covered = ws.get_covered_triangles(wiper)[0]
-                t = np.random.rand(3) * 0.9
-                t[2] = -0.05
-                wiper.obj.setTransform([1,0,0,0,1,0,0,0,1], t)
-            end_time = time.monotonic()
-            print(len(wiper.ray_t))
-            print("\t\t".join(("Ray", "Opt", "Clean")))
-            print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
-            print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
-                f"{np.std(wiper.ray_t[1:]):.4g}",
-                f"{np.mean(wiper.opt_t[1:]):.4g}",
-                f"{np.std(wiper.opt_t[1:]):.4g}",
-                f"{np.mean(wiper.clean_t[1:]):.4g}",
-                f"{np.std(wiper.clean_t[1:]):.4g}")))
-            print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    ws.update_infection(1-covered)
-    ws.update_colors()
+    # sizes = [30, 30, 50]
+    # RUNS = 1
+    # if TIMING:
+    #     RUNS = 11
+    # for i in range(1):#len(sizes)):
+    #     wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=100)
+    #     wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
+    #     # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
+    #     # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
+    #     #                0.0000000,  1.0000000,  0.0000000,
+    #     #                0.4968801,  0.0000000,  0.8678192 ],
+    #     #     [0.01,0.01,0.1])
+    #
+    #     covered = ws.get_covered_triangles(wiper)
+    #     if TIMING:
+    #         start_time = time.monotonic()
+    #         for j in range(RUNS):
+    #             covered = ws.get_covered_triangles(wiper)
+    #             t = np.random.rand(3) * 0.9
+    #             t[2] = -0.05
+    #             wiper.obj.setTransform([1,0,0,0,1,0,0,0,1], t)
+    #         end_time = time.monotonic()
+    #         print(len(wiper.ray_t))
+    #         print("\t\t".join(("Ray", "Opt", "Clean")))
+    #         print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
+    #         print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
+    #             f"{np.std(wiper.ray_t[1:]):.4g}",
+    #             f"{np.mean(wiper.opt_t[1:]):.4g}",
+    #             f"{np.std(wiper.opt_t[1:]):.4g}",
+    #             f"{np.mean(wiper.clean_t[1:]):.4g}",
+    #             f"{np.std(wiper.clean_t[1:]):.4g}")))
+    #         print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
+    # ws.update_infection(1-covered)
+    # ws.update_colors()
     #wiper.wipe_step(wiper.obj.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.95]), ws)
     # wiper.setTransform([1,0,0,0,1,0,0,0,1], [-0.1,-0.1,0.05])
     #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.2,0,0])
+    wiper = Wiper(wiper_obj, rows=30, cols=30, lam=100, beta_0=10, gamma_0=0.8)
+    wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.05])
     if DISPLAY:
         vis.add("world", world)
         vis.show()
         while vis.shown():
             # sim.simulate(dt)
-            # R, t = wiper.obj.getTransform()
-            # if state == "left":
-            #     if t[1] < max:
-            #         move_t = list(t[:])
-            #         move_t[1] += step
-            #         wiper.wipe_step((R,t), (R, move_t), ws)
-            #     else:
-            #         state = "right"
+            R, t = wiper.obj.getTransform()
+            if state == "left":
+                if t[1] < max:
+                    move_t = list(t[:])
+                    move_t[1] += step
+                    wiper.wipe_step((R,t), (R, move_t), ws)
+                else:
+                    state = "right"
             # elif state == "right":
             #     if t[1] > min:
             #         move_t = list(t[:])
@@ -123,29 +125,25 @@ class WipeSurface:
         self.num_triangles = len(self.inds)
         self.v_map = None
         self.t_neighbors = None
-        # st = time.monotonic()
         self.build_triangle_adjacency()
-        # et = time.monotonic()
-        # print(f"Building triangle adjacency took {et - st} seconds")
-        self.infection_level = np.ones(self.num_triangles)
+        self.t_normals = None
+        self.build_triangle_normals()
+        self.infection_level = np.ones(self.num_triangles) + np.random.rand(self.num_triangles)/10
         self.infection_level[0] = 0
         self.obj.appearance().setColor(0.0, 0.0, 1.0)
         self.update_colors()
         self.covered = np.zeros(self.num_triangles)
         self.hit_dist_thresh = 0
         self.epsilon = 1e-5
+        self.visited_triangles = []
 
     def build_triangle_adjacency(self):
-        # vs = time.monotonic()
         self.v_map = []
         for i in range(len(self.verts)):
             self.v_map.append([])
         for i in range(self.num_triangles):
             for j in range(len(self.inds[i])):
                 self.v_map[self.inds[i][j]].append(i)
-        # ve = time.monotonic()
-        # print(f"Vertices: {ve - vs}")
-        # ts = time.monotonic()
         self.t_neighbors = -np.ones((self.inds.shape), dtype=np.int64)
         for i in range(self.num_triangles):
             count = {}
@@ -162,9 +160,24 @@ class WipeSurface:
                     ind += 1
                 if ind == 3:
                     break
-            # assert ind==3, f"Only found {ind} neighbors for triangle {i}"
-        # te = time.monotonic()
-        # print(f"Triangles: {te - ts}")
+
+    def build_triangle_normals(self):
+        self.t_normals = np.empty((self.num_triangles, 3))
+        sum = 0
+        for i in range(self.num_triangles):
+            a = self.verts[self.inds[i][0], :]
+            b = self.verts[self.inds[i][1], :]
+            c = self.verts[self.inds[i][2], :]
+            v1 = b - a
+            v2 = c - a
+            cx = np.cross(v1, v2)
+            sum += ((a[0] + b[0] + c[0])/3) * cx[0] * np.linalg.norm(cx)/2
+            self.t_normals[i, :] = cx / np.linalg.norm(cx)
+        if sum < 0:
+            self.t_normals = -self.t_normals
+        # for i in range(0, self.num_triangles, self.num_triangles//1000):
+        #     pt = np.mean(self.verts[self.inds[i, :], :], axis=0) + self.t_normals[i, :]/100
+        #     primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
     def get_covered_triangles(self, wiper):
         global world, DEBUG
@@ -213,7 +226,6 @@ class WipeSurface:
 
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
-        covered_vertices = np.zeros(len(self.verts))
         covered_triangles = np.zeros(self.num_triangles)
         visited = np.zeros(self.num_triangles)
         for i in range(wiper.tot):
@@ -227,7 +239,7 @@ class WipeSurface:
             wiper.opt_t.append(opt_e - opt_s)
             wiper.clean_t.append(clean_e - clean_s)
         self.covered = covered_triangles
-        return self.covered, covered_vertices
+        return self.covered
 
     def interpolate_contact(self, triangle, wiper, visited, grid, heights,
         cover
@@ -236,7 +248,7 @@ class WipeSurface:
             return
         visited[triangle] = 1
         centroid = np.zeros(4)
-        centroid[:3] = np.mean(self.verts[self.inds[triangle]], axis=0)
+        centroid[:3] = np.mean(self.verts[self.inds[triangle, :], :], axis=0)
         centroid[3] = 1
         hit, pt = self.obj.geometry().rayCast(centroid[:3], -wiper.norm)
         if (hit and 1e-5 < np.linalg.norm(np.array(pt) - centroid[:3])
@@ -267,10 +279,11 @@ class WipeSurface:
             i1 = (1 - mx) * vs[0] + mx * vs[2]
             i2 = (1 - mx) * vs[1] + mx * vs[3]
             # Exponential fall off for points far from the heights
-            var = np.exp(-0.01 * wiper.lam)
+            var = np.exp(-0.1 * wiper.lam)
             avg_h = np.mean([heights[wiper.flatten(g)] for g in gs])
             cover[triangle] = (((1 - my) * i1 + my * i2)
-                * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var))
+                * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
+                * max(0, (-wiper.norm.T @ self.t_normals[triangle])))
         else:   # Outside the confines of the wiper
             return
         for i in range(len(self.t_neighbors[triangle])):
@@ -380,36 +393,20 @@ class Wiper:
         """
         # Grab the second element (translation),
         move_vec = np.array(klampt.math.se3.error(end, start)[3:])
-        self.obj.setTransform(*start)
-        start_cover, start_cover_verts = ws.get_covered_triangles(self)
-        start_vert_dists = self.get_vert_dists(ws, move_vec, start_cover_verts)
-        ws.clear_covered()
+        self.setTransform(*start)
+        start_cover = ws.get_covered_triangles(self)
 
-        self.obj.setTransform(*end)
-        end_cover, end_cover_verts = ws.get_covered_triangles(self)
-        end_vert_dists = self.get_vert_dists(ws, -move_vec, end_cover_verts)
-        ws.clear_covered()
+        self.setTransform(*end)
+        end_cover = ws.get_covered_triangles(self)
 
-        both_cover = np.logical_and(start_cover, end_cover)
-        d = np.zeros(ws.num_triangles)
-        d += both_cover * math.se3.distance(start, end, Rweight=0.0)
-
-        # (S U E) - B
-        # u_minus_i = np.logical_and(np.logical_or(start_cover, end_cover),
-        #     np.logical_not(both_cover))
-        # u_minus_i_d = start_vert_dists + end_vert_dists
-        # u_minus_i_d = u_minus_i_d[u_minus_i]
-        # Abstract this into function? Or can I just deal with the union?
-        # d[u_minus_i] = np.mean()
-        for i, c in enumerate(start_cover):
-            if c and not both_cover[i]:
-                avg_dist = np.mean(start_vert_dists[ws.inds[i, :]])
-                d[i] = avg_dist
-        for i, c in enumerate(end_cover):
-            if c and not both_cover[i]:
-                avg_dist = np.mean(end_vert_dists[ws.inds[i, :]])
-                d[i] = avg_dist
-        ws.update_infection(self.gamma(1.0, 1.0, 1.0, d))
+        avg_cover = (start_cover + end_cover) / 2
+        dists = np.zeros(ws.num_triangles)
+        for i, c in enumerate(avg_cover):
+            if c > 0:
+                v = move_vec
+                n = ws.t_normals[i, :]
+                dists[i] = np.linalg.norm(v - ((v.T @ n)/(n.T @ n)) * n)
+        ws.update_infection(self.gamma(1.0, avg_cover, 1.0, dists))
         ws.update_colors()
 
     def setTransform(self, R, t):
@@ -425,17 +422,19 @@ class Wiper:
         for i in range(self.tot):
             self.top_points[i, :] = (self.H @ self.id_top_points[i, :])
 
-    def get_vert_dists(self, ws, move_vec, covered_vertices):
+    def get_dists(self, ws, move_vec, covered_triangles):
         """Compute distance from vertex to edge of wiper
         """
-        vert_dists = np.zeros(ws.verts.shape[0])
-        for i, c in enumerate(covered_vertices):
-            if c:
-                hit, pt = self.obj.geometry().rayCast(ws.verts[i], -move_vec)
+        dists = np.zeros(ws.num_triangles)
+        for i, c in enumerate(covered_triangles):
+            if c > 0:
+                cen = np.mean(self.verts[self.inds[i, :], :], axis=0)
+                hit, pt = self.obj.geometry().rayCast(cen, -move_vec)
                 if hit:
-                    vert_dists = np.linalg.norm(
-                        np.array(pt) - ws.verts[i, :])
-        return vert_dists
+                    v = np.array(pt) - cen
+                    n = ws.t_normals[i, :]
+                    dists[i] = np.linalg.norm(v - ((v.T @ n)/(n.T @ n)) * n)
+        return dists
 
     def flatten(self, pt):
         """Return flat index into a grid with self.rows rows and self.cols
@@ -455,8 +454,8 @@ class Wiper:
         w: float
         d: np.ndarray
         """
-        return (self.gamma_0 * self.s_function(s)
-            * self.f_function(f) * self.w_function(w)) ** (self.beta_0 * d)
+        return (self.s_function(s)
+            * (1 - self.gamma_0 * f) * self.w_function(w)) ** (self.beta_0 * d)
 
     def s_function(self, s):
         return 1
