@@ -17,7 +17,7 @@ from klampt.vis import colorize
 from klampt.model.create import primitives
 
 world = klampt.WorldModel()
-DEBUG = False
+DEBUG = True
 TIMING = False
 DISPLAY = True
 
@@ -27,7 +27,7 @@ def main():
     oort = 1/(2**0.5)
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
-    g.loadFile("keys.off")
+    g.loadFile("lumps.off")
     ws = WipeSurface("tm", obj)
 
     wiper_obj = world.makeRigidObject("wiper")
@@ -35,74 +35,68 @@ def main():
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
     wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
 
-
-    # sim = klampt.Simulator(world)
-    # sim.setGravity((0,0,0))
     dt = 0.1
     step = 0.01
-    max = 0.3
+    max = 1.0
     min = -0.1
     state = "left"
 
-    # ws_body = sim.body(world.rigidObject(obj.getID()))
-    # ws_body.enableDynamics(False)
-    #
-    # wiper_body = sim.body(world.rigidObject(wiper_obj.getID()))
-    # wiper_body.enableDynamics(False)
-    # wiper_body.setVelocity([0,0,0], [0,0.0,0])
+    sizes = [10, 30, 50]
+    RUNS = 1
+    if TIMING:
+        RUNS = 11
+    for i in range(1):#len(sizes)):
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=10)
+        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
+        # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
+        # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
+        #                0.0000000,  1.0000000,  0.0000000,
+        #                0.4968801,  0.0000000,  0.8678192 ],
+        #     [0.01,0.01,0.1])
 
-    # sizes = [30, 30, 50]
-    # RUNS = 1
-    # if TIMING:
-    #     RUNS = 11
-    # for i in range(1):#len(sizes)):
-    #     wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=100)
-    #     wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,-0.05])
-    #     # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
-    #     # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
-    #     #                0.0000000,  1.0000000,  0.0000000,
-    #     #                0.4968801,  0.0000000,  0.8678192 ],
-    #     #     [0.01,0.01,0.1])
-    #
-    #     covered = ws.get_covered_triangles(wiper)
-    #     if TIMING:
-    #         start_time = time.monotonic()
-    #         for j in range(RUNS):
-    #             covered = ws.get_covered_triangles(wiper)
-    #             t = np.random.rand(3) * 0.9
-    #             t[2] = -0.05
-    #             wiper.obj.setTransform([1,0,0,0,1,0,0,0,1], t)
-    #         end_time = time.monotonic()
-    #         print(len(wiper.ray_t))
-    #         print("\t\t".join(("Ray", "Opt", "Clean")))
-    #         print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
-    #         print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
-    #             f"{np.std(wiper.ray_t[1:]):.4g}",
-    #             f"{np.mean(wiper.opt_t[1:]):.4g}",
-    #             f"{np.std(wiper.opt_t[1:]):.4g}",
-    #             f"{np.mean(wiper.clean_t[1:]):.4g}",
-    #             f"{np.std(wiper.clean_t[1:]):.4g}")))
-    #         print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    # ws.update_infection(1-covered)
-    # ws.update_colors()
-    #wiper.wipe_step(wiper.obj.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.95]), ws)
-    # wiper.setTransform([1,0,0,0,1,0,0,0,1], [-0.1,-0.1,0.05])
-    #wiper_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.2,0,0])
-    wiper = Wiper(wiper_obj, rows=30, cols=30, lam=100, beta_0=10, gamma_0=0.8)
-    wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.05])
+        covered = ws.get_covered_triangles(wiper)
+        if TIMING:
+            start_time = time.monotonic()
+            for j in range(RUNS):
+                covered = ws.get_covered_triangles(wiper)
+                t = np.random.rand(3) * 0.9
+                t[2] = -0.05
+                wiper.obj.setTransform([1,0,0,0,1,0,0,0,1], t)
+            end_time = time.monotonic()
+            print(len(wiper.ray_t))
+            print("\t\t".join(("Ray", "Opt", "Clean")))
+            print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
+            print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
+                f"{np.std(wiper.ray_t[1:]):.4g}",
+                f"{np.mean(wiper.opt_t[1:]):.4g}",
+                f"{np.std(wiper.opt_t[1:]):.4g}",
+                f"{np.mean(wiper.clean_t[1:]):.4g}",
+                f"{np.std(wiper.clean_t[1:]):.4g}")))
+            print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
+    print(covered)
+    ws.update_infection(1-covered)
+    ws.update_colors()
+    # wiper = Wiper(wiper_obj, rows=10, cols=10, lam=100, beta_0=10, gamma_0=0.8)
+    # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.05])
     if DISPLAY:
         vis.add("world", world)
+        # vis.getViewport().setTransform(([0, -1, 0,
+        #     -oort, 0, -oort,
+        #     oort, 0, -oort], [-1.5, 0.5, 2]))
         vis.show()
+        # time.sleep(3)
         while vis.shown():
             # sim.simulate(dt)
-            R, t = wiper.obj.getTransform()
-            if state == "left":
-                if t[1] < max:
-                    move_t = list(t[:])
-                    move_t[1] += step
-                    wiper.wipe_step((R,t), (R, move_t), ws)
-                else:
-                    state = "right"
+            # R, t = wiper.obj.getTransform()
+            # if state == "left":
+            #     if t[1] < max:
+            #         move_t = list(t[:])
+            #         move_t[1] += step
+            #         start = time.monotonic()
+            #         wiper.wipe_step((R,t), (R, move_t), ws)
+            #         print(time.monotonic() - start)
+            #     else:
+            #         state = "right"
             # elif state == "right":
             #     if t[1] > min:
             #         move_t = list(t[:])
@@ -111,6 +105,7 @@ def main():
             #     else:
             #         state = "stop"
             time.sleep(dt)
+        vis.show(False)
 
 
 class WipeSurface:
@@ -210,8 +205,8 @@ class WipeSurface:
         # Solve opt problem to find contacted triangles
         opt_s = time.monotonic()
         h = cp.Variable(wiper.tot)
-        objective = cp.Minimize(cp.sum_squares(h)
-            + wiper.lam * (cp.quad_form(h, wiper.Q)))
+        objective = cp.Minimize(cp.sum_squares(h / wiper.max_h)
+            + wiper.lam * (cp.quad_form(h, wiper.Qy) + cp.quad_form(h, wiper.Qx)))
         constraints = [h <= wiper.max_h, h >= min_h]
         prob = cp.Problem(objective, constraints)
         result = prob.solve()
@@ -220,9 +215,8 @@ class WipeSurface:
 
         if DEBUG:
             for i in range(wiper.tot):
-                if h_val[i] - min_h[i] < 1e-3:
-                    pt = wiper.top_points[i][:3] + (wiper.max_h - h_val[i]) * wiper.norm
-                    primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
+                pt = wiper.top_points[i][:3] + (wiper.max_h - h_val[i]) * wiper.norm
+                primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
@@ -257,24 +251,22 @@ class WipeSurface:
             # Line of sight to wiper is blocked --> can't be in contact
             return
         proj_c = wiper.H_i @ centroid
-        if (0 <= proj_c[0] <= wiper.width and 0 <= proj_c[1] <= wiper.height
-            and 0 <= proj_c[1] <= wiper.max_h
+        if (0 < proj_c[0] < wiper.width and 0 < proj_c[1] < wiper.height
+            and 0 <= proj_c[2] <= wiper.max_h
         ):
             # Bilinearly interpolate between the four h values around this pt
-            dx = wiper.width / max(1, wiper.cols - 1)
-            dy = wiper.height / max(1, wiper.rows - 1)
             # g's formatted as [col, row] or [x, y]
             #  g2 x  x g4
             #  g1 x  x g3
-            g1 = [proj_c[0] // dx, proj_c[1] // dy]
+            g1 = [proj_c[0] // wiper.dx, proj_c[1] // wiper.dy]
             g2 = [g1[0], g1[1] + 1]
             g3 = [g1[0] + 1, g1[1]]
             g4 = [g3[0], g3[1] + 1]
             gs = [g1,g2,g3,g4]
             # How far is p from g1 in x and y normalized by distances between
             # adjacent grid points
-            mx = (proj_c[0] % dx) / dx
-            my = (proj_c[1] % dy) / dy
+            mx = (proj_c[0] % wiper.dx) / wiper.dx
+            my = (proj_c[1] % wiper.dy) / wiper.dy
             vs = [grid[wiper.flatten(g)] for g in gs]
             i1 = (1 - mx) * vs[0] + mx * vs[2]
             i2 = (1 - mx) * vs[1] + mx * vs[3]
@@ -309,11 +301,10 @@ class WipeSurface:
 
 
 class Wiper:
-    def __init__(self, obj, compliance=0.01, gamma_0=0.5, beta_0=1.0, rows=10,
+    def __init__(self, obj, gamma_0=0.5, beta_0=1.0, rows=10,
         cols=10, lam=0
     ):
         self.obj = obj
-        self.compliance = compliance
         self.gamma_0 = gamma_0
         self.beta_0 = beta_0
         self.id_norm = np.array([0,0,-1])
@@ -326,16 +317,17 @@ class Wiper:
         self.rows = max(2, rows)
         self.cols = max(2, cols)
         self.tot = self.rows * self.cols
-        self.Q = None
-        self.init_Q()
-        # plt.spy(self.Q)
-        # plt.show()
         self.max_h = 0.2
         self.width = 0.1
         self.height = 0.1
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
+        # lam is (1 - 2v) / (2(1 - v)) where v is Poisson's ratio
         self.lam = lam
+        self.Qy = None
+        self.Qx = None
+        self.init_Qy()
+        self.init_Qx()
         self.id_top_points = np.zeros((self.tot, 4))
         self.top_points = self.id_top_points.copy()
         self.init_top_points()
@@ -343,39 +335,30 @@ class Wiper:
         self.opt_t = []
         self.clean_t = []
 
-    def init_Q(self):
-        # Border terms
-        self.Q = sparse.diags([-1,-1], [-self.cols, self.cols],
+    def init_Qy(self):
+        diag = 2 * np.ones(self.tot)
+        for i in range(self.cols):
+            diag[i] = 1
+            diag[-i] = 1
+        self.Qy = sparse.diags([diag], [0], shape=(self.tot, self.tot))
+        self.Qy += sparse.diags([-1, -1], [-self.cols, self.cols],
             shape=(self.tot, self.tot))
-        # Handle beginnings and endings of rows not having left/right neighbors
+        self.Qy *= 1/self.dy**2
+
+    def init_Qx(self):
+        diag = 2 * np.ones(self.tot)
+        for i in range(0, self.tot, self.cols):
+            diag[i] = 1
+            if i > 0:
+                diag[i - 1] = 1
         off_diag = -np.ones(self.tot-1)
         for i in range(0, self.tot, self.cols):
             if i > 0:
                 off_diag[i-1] = 0
-        self.Q += sparse.diags([off_diag, off_diag], [-1, 1], shape=(self.tot, self.tot))
-        # Squared terms
-        self.Q += sparse.diags([4], [0], shape=(self.tot, self.tot))
-        # Edges
-        for i in range(self.cols):
-            # Top row
-            self.Q[i, i] = 3
-            # Bottom row
-            ind = (self.rows - 1) * self.cols + i
-            self.Q[ind, ind] = 3
-        for i in range(self.rows):
-            # First col
-            ind = (i * self.cols)
-            self.Q[ind, ind] = 3
-            # Last col
-            ind = (i * self.cols) + self.cols - 1
-            self.Q[ind, ind] = 3
-        # Corners
-        self.Q[0, 0] = 2                            # TL
-        self.Q[self.cols - 1, self.cols - 1] = 2    # TR
-        ind = (self.rows - 1) * self.cols           # BL
-        self.Q[ind, ind] = 2
-        ind = self.rows * self.cols - 1             # BR
-        self.Q[ind, ind] = 2
+        self.Qx = sparse.diags([diag], [0], shape=(self.tot, self.tot))
+        self.Qx += sparse.diags([off_diag, off_diag], [-1, 1],
+            shape=(self.tot, self.tot))
+        self.Qx *= 1/self.dx**2
 
     def init_top_points(self):
         for i in range(self.rows):
@@ -392,6 +375,7 @@ class Wiper:
         """
         """
         # Grab the second element (translation),
+        s = time.monotonic()
         move_vec = np.array(klampt.math.se3.error(end, start)[3:])
         self.setTransform(*start)
         start_cover = ws.get_covered_triangles(self)
@@ -400,12 +384,15 @@ class Wiper:
         end_cover = ws.get_covered_triangles(self)
 
         avg_cover = (start_cover + end_cover) / 2
+        print(f'Coverage: {time.monotonic() - s}')
+        s = time.monotonic()
         dists = np.zeros(ws.num_triangles)
         for i, c in enumerate(avg_cover):
             if c > 0:
                 v = move_vec
                 n = ws.t_normals[i, :]
                 dists[i] = np.linalg.norm(v - ((v.T @ n)/(n.T @ n)) * n)
+        print(f'Dists: {time.monotonic() - s}')
         ws.update_infection(self.gamma(1.0, avg_cover, 1.0, dists))
         ws.update_colors()
 
