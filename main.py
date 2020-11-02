@@ -17,7 +17,7 @@ from klampt.vis import colorize
 from klampt.model.create import primitives
 
 world = klampt.WorldModel()
-DEBUG = True
+DEBUG = False
 TIMING = False
 DISPLAY = True
 
@@ -27,7 +27,7 @@ def main():
     oort = 1/(2**0.5)
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
-    g.loadFile("lumps.off")
+    g.loadFile("keys.off")
     ws = WipeSurface("tm", obj)
 
     wiper_obj = world.makeRigidObject("wiper")
@@ -41,12 +41,12 @@ def main():
     min = -0.1
     state = "left"
 
-    sizes = [10, 30, 50]
+    sizes = [30, 30, 50]
     RUNS = 1
     if TIMING:
         RUNS = 11
     for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=10)
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0.5)
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
         # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
         # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
@@ -61,7 +61,7 @@ def main():
                 covered = ws.get_covered_triangles(wiper)
                 t = np.random.rand(3) * 0.9
                 t[2] = -0.05
-                wiper.obj.setTransform([1,0,0,0,1,0,0,0,1], t)
+                wiper.setTransform([1,0,0,0,1,0,0,0,1], t)
             end_time = time.monotonic()
             print(len(wiper.ray_t))
             print("\t\t".join(("Ray", "Opt", "Clean")))
@@ -73,7 +73,6 @@ def main():
                 f"{np.mean(wiper.clean_t[1:]):.4g}",
                 f"{np.std(wiper.clean_t[1:]):.4g}")))
             print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    print(covered)
     ws.update_infection(1-covered)
     ws.update_colors()
     # wiper = Wiper(wiper_obj, rows=10, cols=10, lam=100, beta_0=10, gamma_0=0.8)
@@ -206,7 +205,8 @@ class WipeSurface:
         opt_s = time.monotonic()
         h = cp.Variable(wiper.tot)
         objective = cp.Minimize(cp.sum_squares(h / wiper.max_h)
-            + wiper.lam * (cp.quad_form(h, wiper.Qy) + cp.quad_form(h, wiper.Qx)))
+            + wiper.lam * (cp.quad_form(h, wiper.Qy)
+            + cp.quad_form(h, wiper.Qx)))
         constraints = [h <= wiper.max_h, h >= min_h]
         prob = cp.Problem(objective, constraints)
         result = prob.solve()
@@ -271,7 +271,7 @@ class WipeSurface:
             i1 = (1 - mx) * vs[0] + mx * vs[2]
             i2 = (1 - mx) * vs[1] + mx * vs[3]
             # Exponential fall off for points far from the heights
-            var = np.exp(-0.1 * wiper.lam)
+            var = 2e-5/(1e-8 + wiper.lam)
             avg_h = np.mean([heights[wiper.flatten(g)] for g in gs])
             cover[triangle] = (((1 - my) * i1 + my * i2)
                 * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
@@ -339,7 +339,7 @@ class Wiper:
         diag = 2 * np.ones(self.tot)
         for i in range(self.cols):
             diag[i] = 1
-            diag[-i] = 1
+            diag[-i-1] = 1
         self.Qy = sparse.diags([diag], [0], shape=(self.tot, self.tot))
         self.Qy += sparse.diags([-1, -1], [-self.cols, self.cols],
             shape=(self.tot, self.tot))
@@ -351,6 +351,7 @@ class Wiper:
             diag[i] = 1
             if i > 0:
                 diag[i - 1] = 1
+        diag[-1] = 1
         off_diag = -np.ones(self.tot-1)
         for i in range(0, self.tot, self.cols):
             if i > 0:
