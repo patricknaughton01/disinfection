@@ -105,6 +105,58 @@ def main():
             #         state = "stop"
             time.sleep(dt)
         vis.show(False)
+        vis.kill()
+
+
+class Planner:
+    def __init__(self, surface, wiper, mode='online', plan_type='pfield'):
+        self.surface = surface
+        self.wiper = wiper
+        self.plan_type = plan_type
+        self.mode = mode
+        self.wipes = []
+        self.offsets = None
+
+    def get_wipe(self):
+        if self.plan_type == 'pfield':
+            mag = 0.01
+            vals = [[-mag, 0, mag] for i in range(3)]
+            R, t = self.wiper.getTransform()
+            t = np.array(t)
+            if self.offsets is None:
+                self.offsets = np.array(self.get_dirs(vals))
+                norm = np.linalg.norm(self.offsets, axis=1, keepdims=True)
+                for i, n_val in enumerate(norm):
+                    if n_val == 0:
+                        norm[i] = 1
+                self.offsets = mag * (self.offsets / norm)
+            d_vals = []
+            for i in range(len(self.offsets)):
+                d_vals.append(np.sum(self.surface.infection_level *
+                    self.wiper.wipe_step((R, t),
+                    (R, t + self.offsets[i, :]), self.surface)))
+            min_d = None
+            min_ind = -1
+            for i, val in enumerate(d_vals):
+                if min_d is None or val < min_d:
+                    min_d = val
+                    min_ind = i
+            return ((R, t), (R, t + self.offsets[min_ind, :]))
+
+    def get_dirs(self, values, dim=0):
+        if dim == len(values) - 1:
+            # Base case
+            combos = []
+            for v in values[dim]:
+                combos.append([v])
+            return combos
+        combos = []
+        for v in values[dim]:
+            n_combos = self.get_dirs(values, dim+1)
+            for c in n_combos:
+                c.insert(0, v)
+                combos.append(c)
+        return combos
 
 
 class WipeSurface:
@@ -376,7 +428,7 @@ class Wiper:
         """
         """
         # Grab the second element (translation),
-        s = time.monotonic()
+        # s = time.monotonic()
         move_vec = np.array(klampt.math.se3.error(end, start)[3:])
         self.setTransform(*start)
         start_cover = ws.get_covered_triangles(self)
@@ -385,17 +437,18 @@ class Wiper:
         end_cover = ws.get_covered_triangles(self)
 
         avg_cover = (start_cover + end_cover) / 2
-        print(f'Coverage: {time.monotonic() - s}')
-        s = time.monotonic()
+        # print(f'Coverage: {time.monotonic() - s}')
+        # s = time.monotonic()
         dists = np.zeros(ws.num_triangles)
         for i, c in enumerate(avg_cover):
             if c > 0:
                 v = move_vec
                 n = ws.t_normals[i, :]
                 dists[i] = np.linalg.norm(v - ((v.T @ n)/(n.T @ n)) * n)
-        print(f'Dists: {time.monotonic() - s}')
-        ws.update_infection(self.gamma(1.0, avg_cover, 1.0, dists))
-        ws.update_colors()
+        # print(f'Dists: {time.monotonic() - s}')
+        return self.gamma(1.0, avg_cover, 1.0, dists)
+        # ws.update_infection(self.gamma(1.0, avg_cover, 1.0, dists))
+        # ws.update_colors()
 
     def setTransform(self, R, t):
         """Update transform of the wiper volume, update the relevant
@@ -409,6 +462,9 @@ class Wiper:
         self.norm = self.R @ self.id_norm
         for i in range(self.tot):
             self.top_points[i, :] = (self.H @ self.id_top_points[i, :])
+
+    def getTransform(self):
+        return self.obj.getTransform()
 
     def get_dists(self, ws, move_vec, covered_triangles):
         """Compute distance from vertex to edge of wiper
@@ -456,4 +512,3 @@ class Wiper:
 
 if __name__ == "__main__":
     main()
-    vis.kill()
