@@ -24,13 +24,13 @@ def main():
 
     dt = 0.1
     size = 10
-    max_wipe = 3000
+    max_wipe = 1
     wipe_ind = 0
     wiper = disinfection.Wiper(wiper_obj, rows=size, cols=size, lam=0.5,
         gamma_0=0.8, beta_0=10)
 
-    planner = disinfection.Planner(ws, wiper)
-    planner.get_wipe()
+    planner = disinfection.Planner(ws, wiper, plan_type='greedy')
+    # planner.get_wipe()
 
     vis.add("world", world)
     vis.getViewport().setTransform(([0, -1, 0, -1, 0, 0, 0, 0, -1],

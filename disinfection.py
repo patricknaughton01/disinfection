@@ -8,6 +8,7 @@ import faulthandler
 import scipy as sp
 import scipy.spatial as spatial
 import scipy.sparse as sparse
+import scipy.optimize as opt
 faulthandler.enable()
 
 from klampt import vis
@@ -117,6 +118,33 @@ class Planner:
         self.wipes = []
         self.offsets = None
 
+    def eval_wipe(self, x):
+        """Evaluate a wipe whose parameters are encoded in the 9-vector x
+        x[:3]:  start position of origin of wiper (x,y,z)
+        x[3:6]: end position of origin of wiper(x,y,z)
+        x[6:]:  rotation of the wiper about space frame axes (ZYX Euler angles)
+        """
+        print(x)
+        infection = self.surface.infection_level.copy()
+        orig_transform = self.wiper.getTransform()
+        mag = 0.01
+        t_0 = x[:3]
+        t_1 = x[3:6]
+        dist = np.linalg.norm(t_1 - t_0)
+        R = math.so3.from_rpy(x[6:])
+        self.wiper.setTransform(R, t_0)
+        move_vec = t_1 - t_0
+        while np.linalg.norm(move_vec) > mag:
+            t_step = t_0 + mag * move_vec / np.linalg.norm(move_vec)
+            infection *= self.wiper.wipe_step((R, t_0),
+                (R, t_step), self.surface)
+            t_0 = t_step
+            move_vec = t_1 - t_0
+        # move_vec is smaller than mag now so we can just move to the endpoint
+        infection *= self.wiper.wipe_step((R, t_0), (R, t_1), self.surface)
+        self.wiper.setTransform(*orig_transform)
+        return np.sum(infection) + 0.01 * dist
+
     def get_wipe(self):
         if self.plan_type == 'pfield':
             mag = 0.01
@@ -142,6 +170,12 @@ class Planner:
                     min_d = val
                     min_ind = i
             return ((R, t), (R, t + self.offsets[min_ind, :]))
+        elif self.plan_type == 'greedy':
+            res = opt.minimize(self.eval_wipe, np.zeros((9,)),
+                method='Powell')
+            print(res.x)
+            print(f'Iterations: {res.nit}')
+            print(f'F Evals: {res.nfev}')
 
     def get_dirs(self, values, dim=0):
         if dim == len(values) - 1:
