@@ -172,7 +172,7 @@ class Planner:
             return ((R, t), (R, t + self.offsets[min_ind, :]))
         elif self.plan_type == 'greedy':
             res = opt.minimize(self.eval_wipe, np.zeros((9,)),
-                method='Powell')
+                method='Powell', options={'xtol':0.1, 'ftol':0.1})
             print(res.x)
             print(f'Iterations: {res.nit}')
             print(f'F Evals: {res.nfev}')
@@ -357,7 +357,7 @@ class WipeSurface:
             i1 = (1 - mx) * vs[0] + mx * vs[2]
             i2 = (1 - mx) * vs[1] + mx * vs[3]
             # Exponential fall off for points far from the heights
-            var = 2e-5/(1e-8 + wiper.lam)
+            var = 1e-5/(1e-8 + wiper.lam)
             avg_h = np.mean([heights[wiper.flatten(g)] for g in gs])
             cover[triangle] = (((1 - my) * i1 + my * i2)
                 * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
@@ -404,8 +404,8 @@ class Wiper:
         self.cols = max(2, cols)
         self.tot = self.rows * self.cols
         self.max_h = 0.2
-        self.width = 0.1
-        self.height = 0.1
+        self.width = 0.05
+        self.height = 0.05
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
         # lam is (1 - 2v) / (2(1 - v)) where v is Poisson's ratio
