@@ -1,0 +1,4 @@
+links link1
+parents -1
+tparent 1 0 0   0 1 0   0 0 1   0 0 0
+geometry wiper.off

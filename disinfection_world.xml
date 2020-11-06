@@ -1,0 +1,4 @@
+<world>
+	<robot name="WIPER" file="./wiper.rob"/>
+	<rigidObject file="keys.off"/>
+</world>
