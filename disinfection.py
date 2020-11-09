@@ -16,10 +16,11 @@ from klampt import math
 from klampt import io
 from klampt.vis import colorize
 from klampt.model.create import primitives
+from numba import jit
 
 world = klampt.WorldModel()
 DEBUG = False
-TIMING = False
+TIMING = True
 DISPLAY = True
 
 def main():
@@ -28,8 +29,7 @@ def main():
     oort = 1/(2**0.5)
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
-    g.loadFile("keys.off")
-    ws = WipeSurface("tm", obj)
+    g.loadFile("lumps.off")
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
@@ -42,12 +42,13 @@ def main():
     min = -0.1
     state = "left"
 
-    sizes = [30, 30, 50]
+    sizes = [10, 30, 50]
     RUNS = 1
     if TIMING:
         RUNS = 11
-    for i in range(1):#len(sizes)):
+    for i in range(len(sizes)):
         wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0.5)
+        ws = WipeSurface("tm", obj, wiper)
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
         # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
         # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
@@ -55,13 +56,13 @@ def main():
         #                0.4968801,  0.0000000,  0.8678192 ],
         #     [0.01,0.01,0.1])
 
-        covered = ws.get_covered_triangles(wiper)
+        covered = ws.get_covered_triangles()
         if TIMING:
             start_time = time.monotonic()
             for j in range(RUNS):
-                covered = ws.get_covered_triangles(wiper)
+                covered = ws.get_covered_triangles()
                 t = np.random.rand(3) * 0.9
-                t[2] = -0.05
+                t[2] = 0
                 wiper.setTransform([1,0,0,0,1,0,0,0,1], t)
             end_time = time.monotonic()
             print(len(wiper.ray_t))
@@ -194,7 +195,7 @@ class Planner:
 
 
 class WipeSurface:
-    def __init__(self, name, obj):
+    def __init__(self, name, obj, wiper):
         self.name = name
         self.obj = obj
         self.tm = self.obj.geometry().getTriangleMesh()
@@ -216,6 +217,16 @@ class WipeSurface:
         self.hit_dist_thresh = 0
         self.epsilon = 1e-5
         self.visited_triangles = []
+
+        self.wiper = wiper
+
+        self.h = cp.Variable(self.wiper.tot)
+        self.objective = cp.Minimize(cp.sum_squares(self.h / self.wiper.max_h)
+            + self.wiper.lam * (cp.quad_form(self.h, self.wiper.Qy)
+            + cp.quad_form(self.h, self.wiper.Qx)))
+        self.min_h = cp.Parameter((self.wiper.tot,), nonneg=True)
+        self.constraints = [self.h <= self.wiper.max_h, self.h >= self.min_h]
+        self.prob = cp.Problem(self.objective, self.constraints)
 
     def build_triangle_adjacency(self):
         self.v_map = []
@@ -259,7 +270,7 @@ class WipeSurface:
         #     pt = np.mean(self.verts[self.inds[i, :], :], axis=0) + self.t_normals[i, :]/100
         #     primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
-    def get_covered_triangles(self, wiper):
+    def get_covered_triangles(self):
         global world, DEBUG
         """Get the indices of the covered triangles by a wipe represented by
         the passed in wiper. A triangle is considered covered if all of
@@ -271,57 +282,52 @@ class WipeSurface:
         it was covered.
         """
         ray_s = time.monotonic()
-        min_h = np.zeros(wiper.tot)
+        min_h = np.zeros(self.wiper.tot)
         # Store index of the triangle that this point raycasts to
-        h_t_correspondence = -np.ones(wiper.tot, dtype=np.long)
-        for i in range(wiper.tot):
-            start_pt = wiper.top_points[i][:3]
+        h_t_correspondence = -np.ones(self.wiper.tot, dtype=np.long)
+        for i in range(self.wiper.tot):
+            start_pt = self.wiper.top_points[i][:3]
             hit, pt = self.obj.geometry().rayCast_ext(
-                start_pt, wiper.norm)
+                start_pt, self.wiper.norm)
             if hit >= 0:
                 pt = np.array(pt)
                 if DEBUG:
                     primitives.sphere(0.001, pt, world=world).appearance().setColor(0,1,0)
-                min_h[i] = wiper.max_h - np.linalg.norm(start_pt - pt)
+                min_h[i] = self.wiper.max_h - np.linalg.norm(start_pt - pt)
                 if min_h[i] >= 0:
                     h_t_correspondence[i] = hit
         min_h = np.maximum(min_h, 0)
         ray_e = time.monotonic()
         # Solve opt problem to find contacted triangles
         opt_s = time.monotonic()
-        h = cp.Variable(wiper.tot)
-        objective = cp.Minimize(cp.sum_squares(h / wiper.max_h)
-            + wiper.lam * (cp.quad_form(h, wiper.Qy)
-            + cp.quad_form(h, wiper.Qx)))
-        constraints = [h <= wiper.max_h, h >= min_h]
-        prob = cp.Problem(objective, constraints)
-        result = prob.solve()
-        h_val = h.value
+        self.min_h.value = min_h
+        result = self.prob.solve()
+        h_val = self.h.value
         opt_e = time.monotonic()
 
         if DEBUG:
-            for i in range(wiper.tot):
-                pt = wiper.top_points[i][:3] + (wiper.max_h - h_val[i]) * wiper.norm
+            for i in range(self.wiper.tot):
+                pt = self.wiper.top_points[i][:3] + (self.wiper.max_h - h_val[i]) * self.wiper.norm
                 primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
         covered_triangles = np.zeros(self.num_triangles)
         visited = np.zeros(self.num_triangles)
-        for i in range(wiper.tot):
+        for i in range(self.wiper.tot):
             tind = h_t_correspondence[i]
             if tind > -1:
-                self.interpolate_contact(tind, wiper, visited, contact, h_val,
+                self.interpolate_contact(tind, visited, contact, h_val,
                     covered_triangles)
         clean_e = time.monotonic()
         if TIMING:
-            wiper.ray_t.append(ray_e - ray_s)
-            wiper.opt_t.append(opt_e - opt_s)
-            wiper.clean_t.append(clean_e - clean_s)
+            self.wiper.ray_t.append(ray_e - ray_s)
+            self.wiper.opt_t.append(opt_e - opt_s)
+            self.wiper.clean_t.append(clean_e - clean_s)
         self.covered = covered_triangles
         return self.covered
 
-    def interpolate_contact(self, triangle, wiper, visited, grid, heights,
+    def interpolate_contact(self, triangle, visited, grid, heights,
         cover
     ):
         if visited[triangle]:
@@ -330,42 +336,42 @@ class WipeSurface:
         centroid = np.zeros(4)
         centroid[:3] = np.mean(self.verts[self.inds[triangle, :], :], axis=0)
         centroid[3] = 1
-        hit, pt = self.obj.geometry().rayCast(centroid[:3], -wiper.norm)
+        hit, pt = self.obj.geometry().rayCast(centroid[:3], -self.wiper.norm)
         if (hit and 1e-5 < np.linalg.norm(np.array(pt) - centroid[:3])
-            < wiper.max_h
+            < self.wiper.max_h
         ):
             # Line of sight to wiper is blocked --> can't be in contact
             return
-        proj_c = wiper.H_i @ centroid
-        if (0 < proj_c[0] < wiper.width and 0 < proj_c[1] < wiper.height
-            and 0 <= proj_c[2] <= wiper.max_h
+        proj_c = self.wiper.H_i @ centroid
+        if (0 < proj_c[0] < self.wiper.width and 0 < proj_c[1] < self.wiper.height
+            and 0 <= proj_c[2] <= self.wiper.max_h
         ):
             # Bilinearly interpolate between the four h values around this pt
             # g's formatted as [col, row] or [x, y]
             #  g2 x  x g4
             #  g1 x  x g3
-            g1 = [proj_c[0] // wiper.dx, proj_c[1] // wiper.dy]
+            g1 = [proj_c[0] // self.wiper.dx, proj_c[1] // self.wiper.dy]
             g2 = [g1[0], g1[1] + 1]
             g3 = [g1[0] + 1, g1[1]]
             g4 = [g3[0], g3[1] + 1]
             gs = [g1,g2,g3,g4]
             # How far is p from g1 in x and y normalized by distances between
             # adjacent grid points
-            mx = (proj_c[0] % wiper.dx) / wiper.dx
-            my = (proj_c[1] % wiper.dy) / wiper.dy
-            vs = [grid[wiper.flatten(g)] for g in gs]
+            mx = (proj_c[0] % self.wiper.dx) / self.wiper.dx
+            my = (proj_c[1] % self.wiper.dy) / self.wiper.dy
+            vs = [grid[self.wiper.flatten(g)] for g in gs]
             i1 = (1 - mx) * vs[0] + mx * vs[2]
             i2 = (1 - mx) * vs[1] + mx * vs[3]
             # Exponential fall off for points far from the heights
-            var = 1e-5/(1e-8 + wiper.lam)
-            avg_h = np.mean([heights[wiper.flatten(g)] for g in gs])
+            var = 1e-5/(1e-8 + self.wiper.lam)
+            avg_h = np.mean([heights[self.wiper.flatten(g)] for g in gs])
             cover[triangle] = (((1 - my) * i1 + my * i2)
                 * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
-                * max(0, (-wiper.norm.T @ self.t_normals[triangle])))
+                * max(0, (-self.wiper.norm.T @ self.t_normals[triangle])))
         else:   # Outside the confines of the wiper
             return
         for i in range(len(self.t_neighbors[triangle])):
-            self.interpolate_contact(self.t_neighbors[triangle][i], wiper,
+            self.interpolate_contact(self.t_neighbors[triangle][i],
                 visited, grid, heights, cover)
 
     def clear_covered(self):
@@ -404,8 +410,8 @@ class Wiper:
         self.cols = max(2, cols)
         self.tot = self.rows * self.cols
         self.max_h = 0.2
-        self.width = 0.05
-        self.height = 0.05
+        self.width = 0.1
+        self.height = 0.1
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
         # lam is (1 - 2v) / (2(1 - v)) where v is Poisson's ratio
@@ -465,10 +471,10 @@ class Wiper:
         # s = time.monotonic()
         move_vec = np.array(klampt.math.se3.error(end, start)[3:])
         self.setTransform(*start)
-        start_cover = ws.get_covered_triangles(self)
+        start_cover = ws.get_covered_triangles()
 
         self.setTransform(*end)
-        end_cover = ws.get_covered_triangles(self)
+        end_cover = ws.get_covered_triangles()
 
         avg_cover = (start_cover + end_cover) / 2
         # print(f'Coverage: {time.monotonic() - s}')
