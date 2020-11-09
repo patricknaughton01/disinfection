@@ -316,9 +316,14 @@ class WipeSurface:
         visited = np.zeros(self.num_triangles)
         for i in range(self.wiper.tot):
             tind = h_t_correspondence[i]
-            if tind > -1:
-                self.interpolate_contact(tind, visited, contact, h_val,
-                    covered_triangles)
+            if tind > -1 and not visited[tind]:
+                interpolate_contact(self.verts, self.inds, tind, visited,
+                    contact, h_val, self.wiper.max_h, self.wiper.width,
+                    self.wiper.height, self.wiper.rows, self.wiper.cols,
+                    self.wiper.dx, self.wiper.dy, self.wiper.lam,
+                    self.wiper.norm, self.wiper.H_i, self.t_normals,
+                    self.t_neighbors, covered_triangles
+                )
         clean_e = time.monotonic()
         if TIMING:
             self.wiper.ray_t.append(ray_e - ray_s)
@@ -326,53 +331,6 @@ class WipeSurface:
             self.wiper.clean_t.append(clean_e - clean_s)
         self.covered = covered_triangles
         return self.covered
-
-    def interpolate_contact(self, triangle, visited, grid, heights,
-        cover
-    ):
-        if visited[triangle]:
-            return
-        visited[triangle] = 1
-        centroid = np.zeros(4)
-        centroid[:3] = np.mean(self.verts[self.inds[triangle, :], :], axis=0)
-        centroid[3] = 1
-        hit, pt = self.obj.geometry().rayCast(centroid[:3], -self.wiper.norm)
-        if (hit and 1e-5 < np.linalg.norm(np.array(pt) - centroid[:3])
-            < self.wiper.max_h
-        ):
-            # Line of sight to wiper is blocked --> can't be in contact
-            return
-        proj_c = self.wiper.H_i @ centroid
-        if (0 < proj_c[0] < self.wiper.width and 0 < proj_c[1] < self.wiper.height
-            and 0 <= proj_c[2] <= self.wiper.max_h
-        ):
-            # Bilinearly interpolate between the four h values around this pt
-            # g's formatted as [col, row] or [x, y]
-            #  g2 x  x g4
-            #  g1 x  x g3
-            g1 = [proj_c[0] // self.wiper.dx, proj_c[1] // self.wiper.dy]
-            g2 = [g1[0], g1[1] + 1]
-            g3 = [g1[0] + 1, g1[1]]
-            g4 = [g3[0], g3[1] + 1]
-            gs = [g1,g2,g3,g4]
-            # How far is p from g1 in x and y normalized by distances between
-            # adjacent grid points
-            mx = (proj_c[0] % self.wiper.dx) / self.wiper.dx
-            my = (proj_c[1] % self.wiper.dy) / self.wiper.dy
-            vs = [grid[self.wiper.flatten(g)] for g in gs]
-            i1 = (1 - mx) * vs[0] + mx * vs[2]
-            i2 = (1 - mx) * vs[1] + mx * vs[3]
-            # Exponential fall off for points far from the heights
-            var = 1e-5/(1e-8 + self.wiper.lam)
-            avg_h = np.mean([heights[self.wiper.flatten(g)] for g in gs])
-            cover[triangle] = (((1 - my) * i1 + my * i2)
-                * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
-                * max(0, (-self.wiper.norm.T @ self.t_normals[triangle])))
-        else:   # Outside the confines of the wiper
-            return
-        for i in range(len(self.t_neighbors[triangle])):
-            self.interpolate_contact(self.t_neighbors[triangle][i],
-                visited, grid, heights, cover)
 
     def clear_covered(self):
         self.covered = np.zeros(self.num_triangles)
@@ -390,6 +348,53 @@ class WipeSurface:
     def update_colors(self):
         colorize.colorize(self.obj, self.infection_level,
             colormap="jet", feature="faces")
+
+
+@jit(nopython=True)
+def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
+    width, height, rows, cols, dx, dy, lam, norm, H_i, normals, t_neighbors,
+    cover
+):
+    open = [triangle]
+    while len(open) > 0:
+        triangle = open.pop()
+        visited[triangle] = 1
+        centroid = np.zeros(4)
+        sum_coords = np.zeros(3)
+        for i in range(3):
+            sum_coords += verts[inds[triangle, i], :]
+        # centroid[:3] = np.mean(verts[inds[triangle, :], :], 0)
+        centroid[:3] = sum_coords / 3
+        centroid[3] = 1
+        proj_c = H_i @ centroid
+        if (0 < proj_c[0] < width and 0 < proj_c[1] < height
+            and 0 <= proj_c[2] <= max_h
+        ):
+            # Bilinearly interpolate between the four h values around this pt
+            # g's formatted as [col, row] or [x, y]
+            #  g2 x  x g4
+            #  g1 x  x g3
+            g1 = [proj_c[0] // dx, proj_c[1] // dy]
+            g2 = [g1[0], g1[1] + 1]
+            g3 = [g1[0] + 1, g1[1]]
+            g4 = [g3[0], g3[1] + 1]
+            gs = [g1,g2,g3,g4]
+            # How far is p from g1 in x and y normalized by distances between
+            # adjacent grid points
+            mx = (proj_c[0] % dx) / dx
+            my = (proj_c[1] % dy) / dy
+            vs = [grid[int(g[0] + cols * g[1])] for g in gs]
+            i1 = (1 - mx) * vs[0] + mx * vs[2]
+            i2 = (1 - mx) * vs[1] + mx * vs[3]
+            # Exponential fall off for points far from the heights
+            var = 1e-5/(1e-8 + lam)
+            avg_h = np.mean(np.array([heights[int(g[0] + cols * g[1])] for g in gs]))
+            cover[triangle] = (((1 - my) * i1 + my * i2)
+                * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
+                * max(0, (-norm.T @ normals[triangle])))
+            for i in range(len(t_neighbors[triangle])):
+                if not visited[t_neighbors[triangle][i]]:
+                    open.append(t_neighbors[triangle][i])
 
 
 class Wiper:
