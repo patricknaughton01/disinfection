@@ -269,9 +269,6 @@ class WipeSurface:
             self.t_normals[i, :] = cx / np.linalg.norm(cx)
         if sum < 0:
             self.t_normals = -self.t_normals
-        # for i in range(0, self.num_triangles, self.num_triangles//1000):
-        #     pt = np.mean(self.verts[self.inds[i, :], :], axis=0) + self.t_normals[i, :]/100
-        #     primitives.sphere(0.002, pt, world=world).appearance().setColor(1,0,1)
 
     def get_covered_triangles(self):
         global world, DEBUG
@@ -536,20 +533,6 @@ class Wiper:
 
     def getTransform(self):
         return self.obj.getTransform()
-
-    def get_dists(self, ws, move_vec, covered_triangles):
-        """Compute distance from vertex to edge of wiper
-        """
-        dists = np.zeros(ws.num_triangles)
-        for i, c in enumerate(covered_triangles):
-            if c > 0:
-                cen = np.mean(self.verts[self.inds[i, :], :], axis=0)
-                hit, pt = self.obj.geometry().rayCast(cen, -move_vec)
-                if hit:
-                    v = np.array(pt) - cen
-                    n = ws.t_normals[i, :]
-                    dists[i] = np.linalg.norm(v - ((v.T @ n)/(n.T @ n)) * n)
-        return dists
 
     def flatten(self, pt):
         """Return flat index into a grid with self.rows rows and self.cols
