@@ -15,7 +15,6 @@ def main():
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
     g.loadFile("keys.off")
-    ws = disinfection.WipeSurface("tm", obj)
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
@@ -28,6 +27,7 @@ def main():
     wipe_ind = 0
     wiper = disinfection.Wiper(wiper_obj, rows=size, cols=size, lam=0.5,
         gamma_0=0.8, beta_0=10)
+    ws = disinfection.WipeSurface("tm", obj, wiper)
 
     planner = disinfection.Planner(ws, wiper, plan_type='greedy')
     # planner.get_wipe()
@@ -45,9 +45,9 @@ def main():
             ps = time.monotonic()
             best_wipe = planner.get_wipe()
             p_times.append(time.monotonic() - ps)
-            gamma = wiper.wipe_step(best_wipe[0], best_wipe[1], ws)
-            ws.update_infection(gamma)
-            ws.update_colors()
+            # gamma = wiper.wipe_step(best_wipe[0], best_wipe[1], ws)
+            # ws.update_infection(gamma)
+            # ws.update_colors()
             wipe_ind += 1
         elif wipe_ind == max_wipe:
             e = time.monotonic()

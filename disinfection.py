@@ -135,10 +135,12 @@ class Planner:
         R = math.so3.from_rpy(x[6:])
         self.wiper.setTransform(R, t_0)
         move_vec = t_1 - t_0
+        start_cover = None
         while np.linalg.norm(move_vec) > mag:
             t_step = t_0 + mag * move_vec / np.linalg.norm(move_vec)
-            infection *= self.wiper.wipe_step((R, t_0),
-                (R, t_step), self.surface)
+            gamma, start_cover = self.wiper.eval_wipe_step((R, t_0),
+                (R, t_step), self.surface, start_cover=start_cover)
+            infection *= gamma
             t_0 = t_step
             move_vec = t_1 - t_0
         # move_vec is smaller than mag now so we can just move to the endpoint
@@ -177,6 +179,7 @@ class Planner:
             print(res.x)
             print(f'Iterations: {res.nit}')
             print(f'F Evals: {res.nfev}')
+            return res.x
 
     def get_dirs(self, values, dim=0):
         if dim == len(values) - 1:
@@ -494,6 +497,29 @@ class Wiper:
         return self.gamma(1.0, avg_cover, 1.0, dists)
         # ws.update_infection(self.gamma(1.0, avg_cover, 1.0, dists))
         # ws.update_colors()
+
+    def eval_wipe_step(self, start, end, ws, start_cover=None):
+        """
+        """
+        # Grab the second element (translation),
+        # s = time.monotonic()
+        move_vec = np.array(klampt.math.se3.error(end, start)[3:])
+        if start_cover is None:
+            self.setTransform(*start)
+            start_cover = ws.get_covered_triangles()
+
+        self.setTransform(*end)
+        end_cover = ws.get_covered_triangles()
+
+        avg_cover = (start_cover + end_cover) / 2
+        # print(f'Coverage: {time.monotonic() - s}')
+        # s = time.monotonic()
+        v = move_vec
+        n = ws.t_normals
+        dists = (np.linalg.norm(v
+            - (n @ v / np.linalg.norm(n, axis=1)**2).reshape(-1, 1)
+            * n, axis=1))
+        return self.gamma(1.0, avg_cover, 1.0, dists), end_cover
 
     def setTransform(self, R, t):
         """Update transform of the wiper volume, update the relevant
