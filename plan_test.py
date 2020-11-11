@@ -21,7 +21,6 @@ def main():
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
     wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
 
-    dt = 0.1
     size = 10
     max_wipe = 1
     wipe_ind = 0
@@ -45,6 +44,7 @@ def main():
             ps = time.monotonic()
             best_wipe = planner.get_wipe()
             p_times.append(time.monotonic() - ps)
+            print("Best wipe: ", best_wipe)
             # gamma = wiper.wipe_step(best_wipe[0], best_wipe[1], ws)
             # ws.update_infection(gamma)
             # ws.update_colors()
@@ -57,7 +57,6 @@ def main():
             print(f"Total time: {total_time}")
             print(f"Average time per iteration: {total_time/max_wipe}")
             wipe_ind += 1
-        time.sleep(dt)
     vis.show(False)
     vis.kill()
 

@@ -9,6 +9,8 @@ import scipy as sp
 import scipy.spatial as spatial
 import scipy.sparse as sparse
 import scipy.optimize as opt
+import math as pmath
+import numba
 faulthandler.enable()
 
 from klampt import vis
@@ -20,7 +22,7 @@ from numba import jit
 
 world = klampt.WorldModel()
 DEBUG = False
-TIMING = True
+TIMING = False
 DISPLAY = True
 
 def main():
@@ -46,8 +48,8 @@ def main():
     RUNS = 1
     if TIMING:
         RUNS = 11
-    for i in range(len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0.5)
+    for i in range(1):#len(sizes)):
+        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0)
         ws = WipeSurface("tm", obj, wiper)
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
         # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
@@ -56,7 +58,8 @@ def main():
         #                0.4968801,  0.0000000,  0.8678192 ],
         #     [0.01,0.01,0.1])
 
-        covered = ws.get_covered_triangles()
+        # covered = ws.get_covered_triangles()
+        gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.02,0.01,0.0]), ws)
         if TIMING:
             start_time = time.monotonic()
             for j in range(RUNS):
@@ -75,7 +78,8 @@ def main():
                 f"{np.mean(wiper.clean_t[1:]):.4g}",
                 f"{np.std(wiper.clean_t[1:]):.4g}")))
             print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    ws.update_infection(1-covered)
+    # ws.update_infection(wiper.gamma(1, covered, 1, covered))
+    ws.update_infection(gamma)
     ws.update_colors()
     # wiper = Wiper(wiper_obj, rows=10, cols=10, lam=100, beta_0=10, gamma_0=0.8)
     # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.05])
@@ -110,6 +114,24 @@ def main():
         vis.kill()
 
 
+@jit(nopython=True)
+def reduction(infection, gamma):
+    reduction = 0
+    for key in gamma:
+        reduction += infection[key] - infection[key]*gamma[key]
+    return reduction
+
+
+@jit(nopython=True)
+def combine_gamma(gamma1, gamma2):
+    for key in gamma2:
+        if key in gamma1:
+            gamma1[key] *= gamma2[key]
+        else:
+            gamma1[key] = gamma2[key]
+    return gamma1
+
+
 class Planner:
     def __init__(self, surface, wiper, mode='online', plan_type='pfield'):
         self.surface = surface
@@ -118,35 +140,44 @@ class Planner:
         self.mode = mode
         self.wipes = []
         self.offsets = None
+        self.cache = {}
 
     def eval_wipe(self, x):
-        """Evaluate a wipe whose parameters are encoded in the 9-vector x
-        x[:3]:  start position of origin of wiper (x,y,z)
-        x[3:6]: end position of origin of wiper(x,y,z)
-        x[6:]:  rotation of the wiper about space frame axes (ZYX Euler angles)
+        """Evaluate a wipe whose parameters are encoded in the 5-vector x
+        x[:2]:  start position of origin of wiper (x,y)
+        x[2:4]: end position of origin of wiper(x,y)
+        x[4]:  rotation of the wiper about z axis
         """
         print(x)
-        infection = self.surface.infection_level.copy()
+        key = tuple(x)
+        if key in self.cache:
+            return self.cache[key]
         orig_transform = self.wiper.getTransform()
         mag = 0.01
-        t_0 = x[:3]
-        t_1 = x[3:6]
+        t_0 = np.append(x[:2], [0])
+        t_1 = np.append(x[2:4], [0])
         dist = np.linalg.norm(t_1 - t_0)
-        R = math.so3.from_rpy(x[6:])
+        c = pmath.cos(x[4])
+        s = pmath.sin(x[4])
+        R = [c, s, 0, -s, c, 0, 0, 0, 1]
         self.wiper.setTransform(R, t_0)
         move_vec = t_1 - t_0
         start_cover = None
+        total_gamma = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
         while np.linalg.norm(move_vec) > mag:
             t_step = t_0 + mag * move_vec / np.linalg.norm(move_vec)
             gamma, start_cover = self.wiper.eval_wipe_step((R, t_0),
                 (R, t_step), self.surface, start_cover=start_cover)
-            infection *= gamma
+            total_gamma = combine_gamma(total_gamma, gamma)
             t_0 = t_step
             move_vec = t_1 - t_0
         # move_vec is smaller than mag now so we can just move to the endpoint
-        infection *= self.wiper.wipe_step((R, t_0), (R, t_1), self.surface)
+        gamma, _ = self.wiper.eval_wipe_step((R, t_0), (R, t_1), self.surface, start_cover=start_cover)
+        total_gamma = combine_gamma(total_gamma, gamma)
+        total_reduction = reduction(self.surface.infection_level, total_gamma)
         self.wiper.setTransform(*orig_transform)
-        return np.sum(infection) + 0.01 * dist
+        self.cache[key] = -total_reduction + 0.01 * dist
+        return self.cache[key]
 
     def get_wipe(self):
         if self.plan_type == 'pfield':
@@ -174,7 +205,7 @@ class Planner:
                     min_ind = i
             return ((R, t), (R, t + self.offsets[min_ind, :]))
         elif self.plan_type == 'greedy':
-            res = opt.minimize(self.eval_wipe, np.zeros((9,)),
+            res = opt.minimize(self.eval_wipe, np.zeros((5,)),
                 method='Powell', options={'xtol':0.1, 'ftol':0.1})
             print(res.x)
             print(f'Iterations: {res.nit}')
@@ -216,7 +247,7 @@ class WipeSurface:
         self.infection_level[0] = 0
         self.obj.appearance().setColor(0.0, 0.0, 1.0)
         self.update_colors()
-        self.covered = np.zeros(self.num_triangles)
+        self.covered = []
         self.hit_dist_thresh = 0
         self.epsilon = 1e-5
         self.visited_triangles = []
@@ -257,7 +288,6 @@ class WipeSurface:
 
     def build_triangle_normals(self):
         self.t_normals = np.empty((self.num_triangles, 3))
-        sum = 0
         for i in range(self.num_triangles):
             a = self.verts[self.inds[i][0], :]
             b = self.verts[self.inds[i][1], :]
@@ -265,10 +295,7 @@ class WipeSurface:
             v1 = b - a
             v2 = c - a
             cx = np.cross(v1, v2)
-            sum += ((a[0] + b[0] + c[0])/3) * cx[0] * np.linalg.norm(cx)/2
             self.t_normals[i, :] = cx / np.linalg.norm(cx)
-        if sum < 0:
-            self.t_normals = -self.t_normals
 
     def get_covered_triangles(self):
         global world, DEBUG
@@ -285,17 +312,21 @@ class WipeSurface:
         min_h = np.zeros(self.wiper.tot)
         # Store index of the triangle that this point raycasts to
         h_t_correspondence = -np.ones(self.wiper.tot, dtype=np.long)
+        hit_flag = False
         for i in range(self.wiper.tot):
             start_pt = self.wiper.top_points[i][:3]
             hit, pt = self.obj.geometry().rayCast_ext(
                 start_pt, self.wiper.norm)
             if hit >= 0:
+                hit_flag = True
                 pt = np.array(pt)
                 if DEBUG:
                     primitives.sphere(0.001, pt, world=world).appearance().setColor(0,1,0)
                 min_h[i] = self.wiper.max_h - np.linalg.norm(start_pt - pt)
                 if min_h[i] >= 0:
                     h_t_correspondence[i] = hit
+        if not hit_flag:
+            return numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
         min_h = np.maximum(min_h, 0)
         ray_e = time.monotonic()
         # Solve opt problem to find contacted triangles
@@ -312,18 +343,19 @@ class WipeSurface:
 
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
-        covered_triangles = np.zeros(self.num_triangles)
+        covered_triangles = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
         visited = np.zeros(self.num_triangles)
         for i in range(self.wiper.tot):
             tind = h_t_correspondence[i]
             if tind > -1 and not visited[tind]:
-                interpolate_contact(self.verts, self.inds, tind, visited,
-                    contact, h_val, self.wiper.max_h, self.wiper.width,
+                covered_triangles.update(interpolate_contact(self.verts,
+                    self.inds, tind, visited, contact, h_val,
+                    self.wiper.max_h, self.wiper.width,
                     self.wiper.height, self.wiper.rows, self.wiper.cols,
                     self.wiper.dx, self.wiper.dy, self.wiper.lam,
                     self.wiper.norm, self.wiper.H_i, self.t_normals,
-                    self.t_neighbors, covered_triangles
-                )
+                    self.t_neighbors
+                ))
         clean_e = time.monotonic()
         if TIMING:
             self.wiper.ray_t.append(ray_e - ray_s)
@@ -343,7 +375,7 @@ class WipeSurface:
         gamma: np.ndarray (self.num_triangles,)
             for each triangle, the proportion of infection remaining
         """
-        self.infection_level *= gamma
+        update_infection(self.infection_level, gamma)
 
     def update_colors(self):
         colorize.colorize(self.obj, self.infection_level,
@@ -353,9 +385,9 @@ class WipeSurface:
 @jit(nopython=True)
 def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
     width, height, rows, cols, dx, dy, lam, norm, H_i, normals, t_neighbors,
-    cover
 ):
     open = [triangle]
+    covered = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
     while len(open) > 0:
         triangle = open.pop()
         visited[triangle] = 1
@@ -389,12 +421,18 @@ def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
             # Exponential fall off for points far from the heights
             var = 1e-5/(1e-8 + lam)
             avg_h = np.mean(np.array([heights[int(g[0] + cols * g[1])] for g in gs]))
-            cover[triangle] = (((1 - my) * i1 + my * i2)
+            covered[triangle] = (((1 - my) * i1 + my * i2)
                 * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
                 * max(0, (-norm.T @ normals[triangle])))
             for i in range(len(t_neighbors[triangle])):
                 if not visited[t_neighbors[triangle][i]]:
                     open.append(t_neighbors[triangle][i])
+    return covered
+
+
+def update_infection(infection, gamma):
+    for key in gamma:
+        infection[key] *= gamma[key]
 
 
 class Wiper:
@@ -508,15 +546,18 @@ class Wiper:
         self.setTransform(*end)
         end_cover = ws.get_covered_triangles()
 
-        avg_cover = (start_cover + end_cover) / 2
-        # print(f'Coverage: {time.monotonic() - s}')
-        # s = time.monotonic()
-        v = move_vec
-        n = ws.t_normals
-        dists = (np.linalg.norm(v
-            - (n @ v / np.linalg.norm(n, axis=1)**2).reshape(-1, 1)
-            * n, axis=1))
-        return self.gamma(1.0, avg_cover, 1.0, dists), end_cover
+        # avg_cover = (start_cover + end_cover) / 2
+        # # print(f'Coverage: {time.monotonic() - s}')
+        # # s = time.monotonic()
+        # v = move_vec
+        # n = ws.t_normals
+        # dists = (np.linalg.norm(v
+        #     - (n @ v / np.linalg.norm(n, axis=1)**2).reshape(-1, 1)
+        #     * n, axis=1))
+        # return self.gamma(1.0, avg_cover, 1.0, dists), end_cover
+        dists, avg_cover = compute_dists(start_cover, end_cover,
+            move_vec, ws.t_normals)
+        return compute_gamma(self.gamma_0, self.beta_0, avg_cover, dists), end_cover
 
     def setTransform(self, R, t):
         """Update transform of the wiper volume, update the relevant
@@ -528,17 +569,10 @@ class Wiper:
         self.R = self.H[:3,:3]
         self.t = self.H[:3, 3]
         self.norm = self.R @ self.id_norm
-        for i in range(self.tot):
-            self.top_points[i, :] = (self.H @ self.id_top_points[i, :])
+        self.top_points = (self.H @ self.id_top_points.T).T
 
     def getTransform(self):
         return self.obj.getTransform()
-
-    def flatten(self, pt):
-        """Return flat index into a grid with self.rows rows and self.cols
-        columns for a point pt in format [col, row]
-        """
-        return int(pt[0] + self.cols * pt[1])
 
     def gamma(self, s, f, w, d):
         """Compute the proportion of infection remaining for a wipe at speed s
@@ -552,8 +586,9 @@ class Wiper:
         w: float
         d: np.ndarray
         """
-        return (self.s_function(s)
-            * (1 - self.gamma_0 * f) * self.w_function(w)) ** (self.beta_0 * d)
+        # return (self.s_function(s)
+        #     * (1 - self.gamma_0 * f) * self.w_function(w)) ** (self.beta_0 * d)
+        return compute_gamma(self.gamma_0, self.beta_0, f, d)
 
     def s_function(self, s):
         return 1
@@ -563,6 +598,33 @@ class Wiper:
 
     def w_function(self, w):
         return 1
+
+
+@jit(nopython=True)
+def compute_dists(start_dict, end_dict, v, n):
+    avg_dict = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
+    dists = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
+    for key in start_dict:
+        if key in end_dict:
+            avg_dict[key] = (start_dict[key] + end_dict[key]) / 2
+        else:
+            avg_dict[key] = start_dict[key] / 2
+    for key in end_dict:
+        if key not in start_dict:
+            avg_dict[key] = end_dict[key] / 2
+    for key in avg_dict:
+        dists[key] = np.linalg.norm(v
+            - ((n[key, :] @ v) / (n[key, :] @ n[key, :])) * n[key, :])
+    return dists, avg_dict
+
+
+@jit(nopython=True)
+def compute_gamma(gamma_0, beta_0, cover, dists):
+    gamma = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
+    for key in cover:
+        gamma[key] = (1 - gamma_0 * cover[key]) ** (beta_0 * dists[key])
+    return gamma
+
 
 if __name__ == "__main__":
     main()
