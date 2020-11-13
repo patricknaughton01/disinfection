@@ -21,7 +21,7 @@ from klampt.model.create import primitives
 from numba import jit
 
 world = klampt.WorldModel()
-DEBUG = True
+DEBUG = False
 TIMING = False
 DISPLAY = True
 
@@ -37,7 +37,7 @@ def main():
     wiper_obj.geometry().loadFile("wiper.off")
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
     wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
-    wiper_obj.appearance().setColor(1,0,1,1)
+    # wiper_obj.appearance().setColor(1,0,1,1)
     wiper_handle = world.makeRigidObject("wiper_handle")
     wiper_handle.geometry().loadFile("wiper_handle.off")
     wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
@@ -54,17 +54,10 @@ def main():
         RUNS = 11
     for i in range(1):#len(sizes)):
         wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
-            cols=sizes[i], lam=0, gamma_0=1.0)
+            cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
         ws = WipeSurface("tm", obj, wiper)
-        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
-        # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
-        # wiper.setTransform([0.8678192,  0.0000000, -0.4968801,
-        #                0.0000000,  1.0000000,  0.0000000,
-        #                0.4968801,  0.0000000,  0.8678192 ],
-        #     [0.01,0.01,0.1])
-
-        # covered = ws.get_covered_triangles()
-        gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.02,0.01,0.0]), ws)
+        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
+        gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.01,0.0]), ws)
         if TIMING:
             start_time = time.monotonic()
             for j in range(RUNS):
@@ -83,11 +76,9 @@ def main():
                 f"{np.mean(wiper.clean_t[1:]):.4g}",
                 f"{np.std(wiper.clean_t[1:]):.4g}")))
             print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    # ws.update_infection(wiper.gamma(1, covered, 1, covered))
+    # ws.update_infection(ws.get_covered_triangles())
     ws.update_infection(gamma)
     ws.update_colors()
-    # wiper = Wiper(wiper_obj, rows=10, cols=10, lam=100, beta_0=10, gamma_0=0.8)
-    # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.05])
     if DISPLAY:
         vis.add("world", world)
         # vis.getViewport().setTransform(([0, -1, 0,
@@ -242,6 +233,13 @@ class WipeSurface:
             (len(self.tm.vertices)//3,3))
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
+        R, t = self.obj.getTransform()
+        R = np.array(R).reshape(3, -1).T
+        t = np.array(t)
+        self.verts = (R @ self.verts.T).T + t
+        if DEBUG:
+            for i in range(100):
+                primitives.sphere(0.001, self.verts[i], world=world).appearance().setColor(0,1,1)
         self.num_triangles = len(self.inds)
         self.v_map = None
         self.t_neighbors = None
@@ -426,9 +424,11 @@ def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
             # Exponential fall off for points far from the heights
             var = 1e-5/(1e-8 + lam)
             avg_h = np.mean(np.array([heights[int(g[0] + cols * g[1])] for g in gs]))
-            covered[triangle] = (((1 - my) * i1 + my * i2)
+            coverage = (((1 - my) * i1 + my * i2)
                 * np.exp(-0.5 * (proj_c[2] - avg_h)**2 / var)
                 * max(0, (-norm.T @ normals[triangle])))
+            if coverage > 0:
+                covered[triangle] = coverage
             for i in range(len(t_neighbors[triangle])):
                 if not visited[t_neighbors[triangle][i]]:
                     open.append(t_neighbors[triangle][i])
@@ -448,12 +448,12 @@ class Wiper:
         self.handle = handle
         self.gamma_0 = gamma_0
         self.beta_0 = beta_0
-        self.id_norm = np.array([0,0,-1])
+        self.id_norm = np.array([0,0,-1], dtype=np.float64)
         self.norm = self.id_norm.copy()
-        self.H = np.eye(4)
-        self.H_i = np.eye(4)
-        self.R = np.eye(3)
-        self.t = np.zeros(3)
+        self.H = np.eye(4, dtype=np.float64)
+        self.H_i = np.eye(4, dtype=np.float64)
+        self.R = np.eye(3, dtype=np.float64)
+        self.t = np.zeros(3, dtype=np.float64)
         # Need at least 2 rows and cols to get four corners of the wiper
         self.rows = max(2, rows)
         self.cols = max(2, cols)
@@ -466,7 +466,7 @@ class Wiper:
             [0,0,-1,self.width],
             [0,1,0,0],
             [1,0,0,self.max_h],
-            [0,0,0,1]])
+            [0,0,0,1]], dtype=np.float64)
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
         # lam is (1 - 2v) / (2(1 - v)) where v is Poisson's ratio
@@ -475,7 +475,7 @@ class Wiper:
         self.Qx = None
         self.init_Qy()
         self.init_Qx()
-        self.id_top_points = np.zeros((self.tot, 4))
+        self.id_top_points = np.zeros((self.tot, 4), dtype=np.float64)
         self.top_points = self.id_top_points.copy()
         self.init_top_points()
         self.ray_t = []
@@ -576,6 +576,28 @@ class Wiper:
 
     def getTransform(self):
         return self.obj.getTransform()
+
+    def getDesiredTransform(self, pt, z_d, move_vec, theta):
+        y_d = np.cross(z_d, move_vec)
+        n_y = np.linalg.norm(y_d)
+        if n_y == 0:
+            # Move doesn't make sense, moving in/out of surface does nothing
+            return None, None
+        y_d = y_d / np.linalg.norm(y_d)
+        z_d = z_d / np.linalg.norm(z_d)
+        x_d = np.cross(y_d, z_d)
+        x_d = x_d / np.linalg.norm(x_d)
+        R_d = np.array([x_d, y_d, z_d]).T
+        c = pmath.cos(theta)
+        s = pmath.sin(theta)
+        rot_z = np.array([
+            [c,-s,0],
+            [s,c,0],
+            [0,0,1]])
+        R_d = R_d @ rot_z
+        offset = R_d @ (self.opt_compression * self.id_norm)
+        t = pt + offset
+        return R_d, t
 
     def gamma(self, s, f, w, d):
         """Compute the proportion of infection remaining for a wipe at speed s
