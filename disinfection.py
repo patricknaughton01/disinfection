@@ -21,7 +21,7 @@ from klampt.model.create import primitives
 from numba import jit
 
 world = klampt.WorldModel()
-DEBUG = False
+DEBUG = True
 TIMING = False
 DISPLAY = True
 
@@ -29,14 +29,18 @@ def main():
     global world
     obj = world.makeRigidObject("tm")
     oort = 1/(2**0.5)
-    # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     g = obj.geometry()
-    g.loadFile("lumps.off")
+    g.loadFile("rod.off")
+    obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
     wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
+    wiper_obj.appearance().setColor(1,0,1,1)
+    wiper_handle = world.makeRigidObject("wiper_handle")
+    wiper_handle.geometry().loadFile("wiper_handle.off")
+    wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
 
     dt = 0.1
     step = 0.01
@@ -49,7 +53,8 @@ def main():
     if TIMING:
         RUNS = 11
     for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, rows=sizes[i], cols=sizes[i], lam=0)
+        wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
+            cols=sizes[i], lam=0, gamma_0=1.0)
         ws = WipeSurface("tm", obj, wiper)
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.01,0.01,0.0])
         # wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,-0.0])
@@ -436,10 +441,11 @@ def update_infection(infection, gamma):
 
 
 class Wiper:
-    def __init__(self, obj, gamma_0=0.5, beta_0=1.0, rows=10,
+    def __init__(self, obj, handle, gamma_0=0.5, beta_0=1.0, rows=10,
         cols=10, lam=0
     ):
         self.obj = obj
+        self.handle = handle
         self.gamma_0 = gamma_0
         self.beta_0 = beta_0
         self.id_norm = np.array([0,0,-1])
@@ -452,9 +458,15 @@ class Wiper:
         self.rows = max(2, rows)
         self.cols = max(2, cols)
         self.tot = self.rows * self.cols
+        self.opt_compression = 0.1
         self.max_h = 0.2
         self.width = 0.1
         self.height = 0.1
+        self.handle_offset = np.array([
+            [0,0,-1,self.width],
+            [0,1,0,0],
+            [1,0,0,self.max_h],
+            [0,0,0,1]])
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
         # lam is (1 - 2v) / (2(1 - v)) where v is Poisson's ratio
@@ -536,8 +548,7 @@ class Wiper:
     def eval_wipe_step(self, start, end, ws, start_cover=None):
         """
         """
-        # Grab the second element (translation),
-        # s = time.monotonic()
+        # Grab the second element (translation)
         move_vec = np.array(klampt.math.se3.error(end, start)[3:])
         if start_cover is None:
             self.setTransform(*start)
@@ -545,16 +556,6 @@ class Wiper:
 
         self.setTransform(*end)
         end_cover = ws.get_covered_triangles()
-
-        # avg_cover = (start_cover + end_cover) / 2
-        # # print(f'Coverage: {time.monotonic() - s}')
-        # # s = time.monotonic()
-        # v = move_vec
-        # n = ws.t_normals
-        # dists = (np.linalg.norm(v
-        #     - (n @ v / np.linalg.norm(n, axis=1)**2).reshape(-1, 1)
-        #     * n, axis=1))
-        # return self.gamma(1.0, avg_cover, 1.0, dists), end_cover
         dists, avg_cover = compute_dists(start_cover, end_cover,
             move_vec, ws.t_normals)
         return compute_gamma(self.gamma_0, self.beta_0, avg_cover, dists), end_cover
@@ -568,6 +569,8 @@ class Wiper:
         self.H_i = np.array(math.se3.homogeneous(math.se3.inv((R,t))))
         self.R = self.H[:3,:3]
         self.t = self.H[:3, 3]
+        handle_h = self.H @ self.handle_offset
+        self.handle.setTransform(handle_h[:3, :3].T.flatten(), handle_h[:3, 3])
         self.norm = self.R @ self.id_norm
         self.top_points = (self.H @ self.id_top_points.T).T
 
@@ -581,13 +584,7 @@ class Wiper:
 
         Parameters
         ----------------
-        s: float
-        f: float
-        w: float
-        d: np.ndarray
         """
-        # return (self.s_function(s)
-        #     * (1 - self.gamma_0 * f) * self.w_function(w)) ** (self.beta_0 * d)
         return compute_gamma(self.gamma_0, self.beta_0, f, d)
 
     def s_function(self, s):
