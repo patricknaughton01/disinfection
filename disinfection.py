@@ -99,10 +99,10 @@ def main():
         wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
         wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
         ws.t_neighbors)
-    for cover in shared_list:
-        if cover is not None:
-            for k in cover:
-                ws.infection_level[k] = 0
+    shared_dict = manager.dict()
+    parallel_compute_gamma(points, shared_list, ws.t_normals, shared_dict,
+        len(points), wiper.gamma_0, wiper.beta_0)
+    ws.update_infection(shared_dict)
     ws.update_colors()
     if DISPLAY:
         vis.add("world", world)
@@ -159,6 +159,22 @@ def combine_gamma(gamma1, gamma2):
     return gamma1
 
 
+def slow_reduction(infection, gamma):
+    reduction = 0
+    for key in gamma:
+        reduction += infection[key] - infection[key]*gamma[key]
+    return reduction
+
+
+def slow_combine_gamma(gamma1, gamma2):
+    for key in gamma2:
+        if key in gamma1:
+            gamma1[key] *= gamma2[key]
+        else:
+            gamma1[key] = gamma2[key]
+    return gamma1
+
+
 class Planner:
     def __init__(self, surface, wiper, mode='online', plan_type='pfield'):
         self.surface = surface
@@ -193,7 +209,7 @@ class Planner:
         key = tuple(x)
         if key in self.cache:
             return self.cache[key]
-        orig_transform = self.wiper.getTransform()
+        # orig_transform = self.wiper.getTransform()
         mag = 0.01
         t_0 = np.append(x[:2], [0])
         t_1 = np.append(x[2:4], [0])
@@ -201,22 +217,35 @@ class Planner:
         c = pmath.cos(x[4])
         s = pmath.sin(x[4])
         R = [c, s, 0, -s, c, 0, 0, 0, 1]
-        self.wiper.setTransform(R, t_0)
-        move_vec = t_1 - t_0
-        start_cover = None
-        total_gamma = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
-        while np.linalg.norm(move_vec) > mag:
-            t_step = t_0 + mag * move_vec / np.linalg.norm(move_vec)
-            gamma, start_cover = self.wiper.eval_wipe_step((R, t_0),
-                (R, t_step), self.surface, start_cover=start_cover)
-            total_gamma = combine_gamma(total_gamma, gamma)
-            t_0 = t_step
-            move_vec = t_1 - t_0
-        # move_vec is smaller than mag now so we can just move to the endpoint
-        gamma, _ = self.wiper.eval_wipe_step((R, t_0), (R, t_1), self.surface, start_cover=start_cover)
-        total_gamma = combine_gamma(total_gamma, gamma)
-        total_reduction = reduction(self.surface.infection_level, total_gamma)
-        self.wiper.setTransform(*orig_transform)
+        # self.wiper.setTransform(R, t_0)
+        # move_vec = t_1 - t_0
+        # start_cover = None
+        # total_gamma = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
+        # while np.linalg.norm(move_vec) > mag:
+        #     t_step = t_0 + mag * move_vec / np.linalg.norm(move_vec)
+        #     gamma, start_cover = self.wiper.eval_wipe_step((R, t_0),
+        #         (R, t_step), self.surface, start_cover=start_cover)
+        #     total_gamma = combine_gamma(total_gamma, gamma)
+        #     t_0 = t_step
+        #     move_vec = t_1 - t_0
+        # # move_vec is smaller than mag now so we can just move to the endpoint
+        # gamma, _ = self.wiper.eval_wipe_step((R, t_0), (R, t_1), self.surface, start_cover=start_cover)
+        # total_gamma = combine_gamma(total_gamma, gamma)
+        transforms = self.gen_transforms((R, t_0), (R, t_1), mag)
+        manager = Manager()
+        covers = manager.list()
+        for i in range(len(transforms)):
+            covers.append(None)
+        parallel_get_covered_triangles(transforms, covers, self.surface.obj, self.surface.verts,
+            self.surface.inds, self.wiper.max_h, self.wiper.width, self.wiper.height, self.wiper.rows,
+            self.wiper.cols, self.wiper.tot, self.wiper.dx, self.wiper.dy, self.wiper.Qx, self.wiper.Qy,
+            self.wiper.id_top_points, self.wiper.lam, self.wiper.id_norm, self.surface.t_normals,
+            self.surface.t_neighbors, chunk=16)
+        total_gamma = manager.dict()
+        parallel_compute_gamma(transforms, covers, self.surface.t_normals, total_gamma,
+            len(transforms), self.wiper.gamma_0, self.wiper.beta_0, chunk=16)
+        total_reduction = slow_reduction(self.surface.infection_level, total_gamma)
+        # self.wiper.setTransform(*orig_transform)
         self.cache[key] = -total_reduction + 0.01 * dist
         return self.cache[key]
 
@@ -424,11 +453,35 @@ class WipeSurface:
             colormap="jet", feature="faces")
 
 
+def parallel_compute_gamma(transforms, covers, normals, final_gamma, n,
+    gamma_0, beta_0, offset=0, chunk=32):
+    if n > chunk:
+        proc = Process(target=parallel_compute_gamma, args=[
+            transforms, covers, normals, final_gamma, n//2, gamma_0, beta_0,
+            offset, chunk])
+        proc.start()
+        parallel_compute_gamma(transforms, covers, normals, final_gamma,
+            n - n//2, gamma_0, beta_0, offset=offset+n//2, chunk=chunk)
+        proc.join()
+    else:
+        coll_gamma = numba.typed.Dict.empty(numba.types.int64,
+            numba.types.float64)
+        for i in range(n):
+            ind = offset + i
+            if ind < len(covers) - 1:
+                v = (np.array(transforms[ind+1][1])
+                    - np.array(transforms[ind][1]))
+                dists, avg_cover = slow_compute_dists(
+                    covers[ind], covers[ind+1], v, normals)
+                gamma = slow_compute_gamma(gamma_0, beta_0, avg_cover, dists)
+                slow_combine_gamma(coll_gamma, gamma)
+        slow_combine_gamma(final_gamma, coll_gamma)
+
+
 def parallel_get_covered_triangles(transforms, coverages, ws_obj, verts, inds,
     max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy, id_top_points, lam,
     id_norm, normals, t_neighbors, offset=0, chunk=32):
     n = len(transforms)
-    print(n, offset)
     if n > chunk:
         proc = Process(target=parallel_get_covered_triangles, args=[
             transforms[:n//2], coverages, ws_obj, verts, inds,
@@ -748,6 +801,30 @@ def compute_dists(start_dict, end_dict, v, n):
 @jit(nopython=True)
 def compute_gamma(gamma_0, beta_0, cover, dists):
     gamma = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
+    for key in cover:
+        gamma[key] = (1 - gamma_0 * cover[key]) ** (beta_0 * dists[key])
+    return gamma
+
+
+def slow_compute_dists(start_dict, end_dict, v, n):
+    avg_dict = {}
+    dists = {}
+    for key in start_dict:
+        if key in end_dict:
+            avg_dict[key] = (start_dict[key] + end_dict[key]) / 2
+        else:
+            avg_dict[key] = start_dict[key] / 2
+    for key in end_dict:
+        if key not in start_dict:
+            avg_dict[key] = end_dict[key] / 2
+    for key in avg_dict:
+        dists[key] = np.linalg.norm(v
+            - ((n[key, :] @ v) / (n[key, :] @ n[key, :])) * n[key, :])
+    return dists, avg_dict
+
+
+def slow_compute_gamma(gamma_0, beta_0, cover, dists):
+    gamma = {}
     for key in cover:
         gamma[key] = (1 - gamma_0 * cover[key]) ** (beta_0 * dists[key])
     return gamma
