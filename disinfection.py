@@ -53,39 +53,52 @@ def main():
     min = -0.1
     state = "left"
 
-    sizes = [10, 30, 50]
-    RUNS = 1
-    if TIMING:
-        RUNS = 11
-    for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
-            cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
-        ws = WipeSurface("tm", obj, wiper)
-        # R, t = wiper.getDesiredTransform([0,0,0], [0, -0.25, 1], [1, 0, 0], 0.1)
-        # wiper.setTransform(R.T.flatten().tolist(), t.tolist())
-        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
-        gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.01,0.0]), ws)
-        if TIMING:
-            start_time = time.monotonic()
-            for j in range(RUNS):
-                covered = ws.get_covered_triangles()
-                t = np.random.rand(3) * 0.9
-                t[2] = 0
-                wiper.setTransform([1,0,0,0,1,0,0,0,1], t)
-            end_time = time.monotonic()
-            print(len(wiper.ray_t))
-            print("\t\t".join(("Ray", "Opt", "Clean")))
-            print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
-            print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
-                f"{np.std(wiper.ray_t[1:]):.4g}",
-                f"{np.mean(wiper.opt_t[1:]):.4g}",
-                f"{np.std(wiper.opt_t[1:]):.4g}",
-                f"{np.mean(wiper.clean_t[1:]):.4g}",
-                f"{np.std(wiper.clean_t[1:]):.4g}")))
-            print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    # ws.update_infection(ws.get_covered_triangles())
-    ws.update_infection(gamma)
-    ws.update_colors()
+    # sizes = [10, 30, 50]
+    # RUNS = 1
+    # if TIMING:
+    #     RUNS = 11
+    # for i in range(1):#len(sizes)):
+    #     wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
+    #         cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
+    #     ws = WipeSurface("tm", obj, wiper)
+    #     # R, t = wiper.getDesiredTransform([0,0,0], [0, -0.25, 1], [1, 0, 0], 0.1)
+    #     # wiper.setTransform(R.T.flatten().tolist(), t.tolist())
+    #     wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
+    #     gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.01,0.0]), ws)
+    #     if TIMING:
+    #         start_time = time.monotonic()
+    #         for j in range(RUNS):
+    #             covered = ws.get_covered_triangles()
+    #             t = np.random.rand(3) * 0.9
+    #             t[2] = 0
+    #             wiper.setTransform([1,0,0,0,1,0,0,0,1], t)
+    #         end_time = time.monotonic()
+    #         print(len(wiper.ray_t))
+    #         print("\t\t".join(("Ray", "Opt", "Clean")))
+    #         print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
+    #         print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
+    #             f"{np.std(wiper.ray_t[1:]):.4g}",
+    #             f"{np.mean(wiper.opt_t[1:]):.4g}",
+    #             f"{np.std(wiper.opt_t[1:]):.4g}",
+    #             f"{np.mean(wiper.clean_t[1:]):.4g}",
+    #             f"{np.std(wiper.clean_t[1:]):.4g}")))
+    #         print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
+    # # ws.update_infection(ws.get_covered_triangles())
+    # ws.update_infection(gamma)
+    # ws.update_colors()
+
+    wiper = Wiper(wiper_obj, wiper_handle, rows=10,
+        cols=10, lam=0, gamma_0=1.0, beta_0=100)
+    ws = WipeSurface("tm", obj, wiper)
+    start = time.monotonic()
+    planner = Planner(ws, wiper)
+    points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
+        ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
+    covers = []
+    for i, pt in enumerate(points):
+        wiper.setTransform(*pt)
+        covers.append(ws.get_covered_triangles())
+    print("Time", time.monotonic() - start)
     if DISPLAY:
         vis.add("world", world)
         # vis.getViewport().setTransform(([0, -1, 0,
