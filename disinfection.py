@@ -478,69 +478,56 @@ def parallel_compute_gamma(transforms, covers, normals, final_gamma, n,
         slow_combine_gamma(final_gamma, coll_gamma)
 
 
-def parallel_get_covered_triangles(transforms, coverages, ws_obj, verts, inds,
+def parallel_get_covered_triangles(transform, coverages, ws_obj, verts, inds,
     max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy, id_top_points, lam,
     id_norm, normals, t_neighbors, offset=0, chunk=32):
-    n = len(transforms)
-    if n > chunk:
-        proc = Process(target=parallel_get_covered_triangles, args=[
-            transforms[:n//2], coverages, ws_obj, verts, inds,
-            max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy,
-            id_top_points, lam, id_norm, normals, t_neighbors, offset, chunk])
-        proc.start()
-        parallel_get_covered_triangles(transforms[n//2:], coverages, ws_obj,
-            verts, inds, max_h, width, height, rows, cols, tot, dx, dy,
-            Qx, Qy, id_top_points, lam, id_norm, normals, t_neighbors,
-            offset=offset+n//2, chunk=chunk)
-        proc.join()
-    else:
-        for t_ind, t in enumerate(transforms):
-            R, p = t
-            H = np.array(math.se3.homogeneous((R,p)))
-            H_i = np.array(math.se3.homogeneous(math.se3.inv((R,p))))
-            R_mat = H[:3,:3]
-            norm = R_mat @ id_norm
-            top_points = (H @ id_top_points.T).T
+    R, p = transform
+    H = np.array(math.se3.homogeneous((R,p)))
+    H_i = np.array(math.se3.homogeneous(math.se3.inv((R,p))))
+    R_mat = H[:3,:3]
+    norm = R_mat @ id_norm
+    top_points = (H @ id_top_points.T).T
 
-            min_h = np.zeros(tot)
-            h_t_correspondence = -np.ones(tot, dtype=np.long)
-            hit_flag = False
-            for i in range(tot):
-                start_pt = top_points[i][:3]
-                hit, pt = ws_obj.geometry().rayCast_ext(
-                    start_pt, norm)
-                if hit >= 0:
-                    hit_flag = True
-                    pt = np.array(pt)
-                    min_h[i] = max_h - np.linalg.norm(start_pt - pt)
-                    if min_h[i] >= 0:
-                        h_t_correspondence[i] = hit
-            if not hit_flag:
-                coverages[offset+t_ind] = {}
-            h = cp.Variable(tot)
-            objective = cp.Minimize(cp.sum_squares(h / max_h)
-                + lam * (cp.quad_form(h, Qy)
-                + cp.quad_form(h, Qx)))
-            min_h = np.maximum(min_h, 0)
-            constraints = [h <= max_h, h >= min_h]
-            prob = cp.Problem(objective, constraints)
-            result = prob.solve()
-            h_val = h.value
+    min_h = np.zeros(tot)
+    h_t_correspondence = -np.ones(tot, dtype=np.long)
+    hit_flag = False
+    for i in range(tot):
+        start_pt = top_points[i][:3]
+        hit, pt = ws_obj.geometry().rayCast_ext(
+            start_pt, norm)
+        if hit >= 0:
+            hit_flag = True
+            pt = np.array(pt)
+            min_h[i] = max_h - np.linalg.norm(start_pt - pt)
+            if min_h[i] >= 0:
+                h_t_correspondence[i] = hit
+    if not hit_flag:
+        coverages[offset] = numba.typed.Dict.empty(numba.types.int64,
+            numba.types.float64)
+    h = cp.Variable(tot)
+    objective = cp.Minimize(cp.sum_squares(h / max_h)
+        + lam * (cp.quad_form(h, Qy)
+        + cp.quad_form(h, Qx)))
+    min_h = np.maximum(min_h, 0)
+    constraints = [h <= max_h, h >= min_h]
+    prob = cp.Problem(objective, constraints)
+    result = prob.solve()
+    h_val = h.value
 
-            contact = np.abs(h_val - min_h) < 1e-3
-            covered_triangles = numba.typed.Dict.empty(numba.types.int64,
-                numba.types.float64)
-            visited = numba.typed.Dict.empty(numba.types.int64,
-                numba.types.boolean)
-            for i in range(tot):
-                tind = h_t_correspondence[i]
-                if tind > -1 and visited.get(tind, False) == False:
-                    covered_triangles.update(interpolate_contact(verts,
-                        inds, tind, visited, contact, h_val, max_h, width,
-                        height, rows, cols, dx, dy, lam, norm, H_i, normals,
-                        t_neighbors
-                    ))
-            coverages[offset+t_ind] = dict(covered_triangles)
+    contact = np.abs(h_val - min_h) < 1e-3
+    covered_triangles = numba.typed.Dict.empty(numba.types.int64,
+        numba.types.float64)
+    visited = numba.typed.Dict.empty(numba.types.int64,
+        numba.types.boolean)
+    for i in range(tot):
+        tind = h_t_correspondence[i]
+        if tind > -1 and visited.get(tind, False) == False:
+            covered_triangles.update(interpolate_contact(verts,
+                inds, tind, visited, contact, h_val, max_h, width,
+                height, rows, cols, dx, dy, lam, norm, H_i, normals,
+                t_neighbors
+            ))
+    coverages[offset] = covered_triangles
 
 
 @jit(nopython=True)
