@@ -19,12 +19,13 @@ from klampt import io
 from klampt.vis import colorize
 from klampt.model.create import primitives
 from numba import jit
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Pool
 
 world = klampt.WorldModel()
 DEBUG = False
 TIMING = False
 DISPLAY = True
+global_ws = '123'
 
 def main():
     global world
@@ -62,6 +63,7 @@ def main():
         wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
             cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
         ws = WipeSurface("tm", obj, wiper)
+        global_ws = ws
         # R, t = wiper.getDesiredTransform([0,0,0], [0, -0.25, 1], [1, 0, 0], 0.1)
         # wiper.setTransform(R.T.flatten().tolist(), t.tolist())
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
@@ -90,19 +92,23 @@ def main():
     planner = Planner(ws, wiper)
     points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
         ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
-    manager = Manager()
-    shared_list = manager.list()
-    for i in range(len(points)):
-        shared_list.append(None)
-    parallel_get_covered_triangles(points, shared_list, ws.obj, ws.verts,
-        ws.inds, wiper.max_h, wiper.width, wiper.height, wiper.rows,
-        wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
-        wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
-        ws.t_neighbors)
-    shared_dict = manager.dict()
-    parallel_compute_gamma(points, shared_list, ws.t_normals, shared_dict,
-        len(points), wiper.gamma_0, wiper.beta_0)
-    ws.update_infection(shared_dict)
+    args = []
+    for i, pt in enumerate(points):
+        args.append((pt, wiper.max_h, wiper.width, wiper.height, wiper.rows,
+            wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
+            wiper.id_top_points, wiper.lam, wiper.id_norm))
+    with Pool(12) as p:
+        covers = p.starmap(parallel_get_covered_triangles, args)
+    print(covers)
+    # parallel_get_covered_triangles(points, shared_list, ws.obj, ws.verts,
+    #     ws.inds, wiper.max_h, wiper.width, wiper.height, wiper.rows,
+    #     wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
+    #     wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
+    #     ws.t_neighbors)
+    # shared_dict = manager.dict()
+    # parallel_compute_gamma(points, shared_list, ws.t_normals, shared_dict,
+    #     len(points), wiper.gamma_0, wiper.beta_0)
+    # ws.update_infection(shared_dict)
     ws.update_colors()
     if DISPLAY:
         vis.add("world", world)
@@ -478,9 +484,11 @@ def parallel_compute_gamma(transforms, covers, normals, final_gamma, n,
         slow_combine_gamma(final_gamma, coll_gamma)
 
 
-def parallel_get_covered_triangles(transform, coverages, ws_obj, verts, inds,
+def parallel_get_covered_triangles(transform,
     max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy, id_top_points, lam,
-    id_norm, normals, t_neighbors, offset=0, chunk=32):
+    id_norm):
+    global global_ws
+    print("Global wipesurface", global_ws)
     R, p = transform
     H = np.array(math.se3.homogeneous((R,p)))
     H_i = np.array(math.se3.homogeneous(math.se3.inv((R,p))))
@@ -493,7 +501,7 @@ def parallel_get_covered_triangles(transform, coverages, ws_obj, verts, inds,
     hit_flag = False
     for i in range(tot):
         start_pt = top_points[i][:3]
-        hit, pt = ws_obj.geometry().rayCast_ext(
+        hit, pt = global_ws.obj.geometry().rayCast_ext(
             start_pt, norm)
         if hit >= 0:
             hit_flag = True
@@ -502,7 +510,7 @@ def parallel_get_covered_triangles(transform, coverages, ws_obj, verts, inds,
             if min_h[i] >= 0:
                 h_t_correspondence[i] = hit
     if not hit_flag:
-        coverages[offset] = numba.typed.Dict.empty(numba.types.int64,
+        return numba.typed.Dict.empty(numba.types.int64,
             numba.types.float64)
     h = cp.Variable(tot)
     objective = cp.Minimize(cp.sum_squares(h / max_h)
@@ -522,12 +530,12 @@ def parallel_get_covered_triangles(transform, coverages, ws_obj, verts, inds,
     for i in range(tot):
         tind = h_t_correspondence[i]
         if tind > -1 and visited.get(tind, False) == False:
-            covered_triangles.update(interpolate_contact(verts,
-                inds, tind, visited, contact, h_val, max_h, width,
-                height, rows, cols, dx, dy, lam, norm, H_i, normals,
-                t_neighbors
+            covered_triangles.update(interpolate_contact(global_ws.verts,
+                global_ws.inds, tind, visited, contact, h_val, max_h, width,
+                height, rows, cols, dx, dy, lam, norm, H_i, global_ws.normals,
+                global_ws.t_neighbors
             ))
-    coverages[offset] = covered_triangles
+    return covered_triangles
 
 
 @jit(nopython=True)
