@@ -19,6 +19,7 @@ from klampt import io
 from klampt.vis import colorize
 from klampt.model.create import primitives
 from numba import jit
+from multiprocessing import Process, Manager
 
 world = klampt.WorldModel()
 DEBUG = False
@@ -84,7 +85,24 @@ def main():
                 f"{np.std(wiper.clean_t[1:]):.4g}")))
             print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
     # ws.update_infection(ws.get_covered_triangles())
-    ws.update_infection(gamma)
+    # ws.update_infection(gamma)
+    ws.update_colors()
+    planner = Planner(ws, wiper)
+    points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
+        ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
+    manager = Manager()
+    shared_list = manager.list()
+    for i in range(len(points)):
+        shared_list.append(None)
+    parallel_get_covered_triangles(points, shared_list, ws.obj, ws.verts,
+        ws.inds, wiper.max_h, wiper.width, wiper.height, wiper.rows,
+        wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
+        wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
+        ws.t_neighbors)
+    for cover in shared_list:
+        if cover is not None:
+            for k in cover:
+                ws.infection_level[k] = 0
     ws.update_colors()
     if DISPLAY:
         vis.add("world", world)
@@ -94,7 +112,12 @@ def main():
         vis.show()
         # time.sleep(3)
         ind = 0
+        print("Num interpolated points", len(points))
         while vis.shown():
+            # if ind < len(points):
+            #     wiper.setTransform(*points[ind])
+            #     ind += 1
+            #     time.sleep(0.1)
             # sim.simulate(dt)
             # R, t = wiper.obj.getTransform()
             # if state == "left":
@@ -264,7 +287,7 @@ class WipeSurface:
                 primitives.sphere(0.001, self.verts[i], world=world).appearance().setColor(0,1,1)
         self.num_triangles = len(self.inds)
         self.v_map = None
-        self.t_neighbors = None
+        self.t_neighbors = -np.ones((self.inds.shape), dtype=np.int64)
         self.build_triangle_adjacency()
         self.t_normals = None
         self.build_triangle_normals()
@@ -294,7 +317,6 @@ class WipeSurface:
         for i in range(self.num_triangles):
             for j in range(len(self.inds[i])):
                 self.v_map[self.inds[i][j]].append(i)
-        self.t_neighbors = -np.ones((self.inds.shape), dtype=np.int64)
         for i in range(self.num_triangles):
             count = {}
             for j in range(len(self.inds[i])):
@@ -312,7 +334,7 @@ class WipeSurface:
                     break
 
     def build_triangle_normals(self):
-        self.t_normals = np.empty((self.num_triangles, 3))
+        self.t_normals = np.empty((self.num_triangles, 3), dtype=np.float64)
         for i in range(self.num_triangles):
             a = self.verts[self.inds[i][0], :]
             b = self.verts[self.inds[i][1], :]
@@ -325,13 +347,7 @@ class WipeSurface:
     def get_covered_triangles(self):
         global world, DEBUG
         """Get the indices of the covered triangles by a wipe represented by
-        the passed in wiper. A triangle is considered covered if all of
-        its vertices are inside the rigidObject.
-
-        REMARK: Implementation/speedup: If the SUW is much larger than the
-        wiper, it makes sense to store this as a list of covered triangles
-        rather than an array with an element for each triangle denoting whether
-        it was covered.
+        the passed in wiper.
         """
         ray_s = time.monotonic()
         min_h = np.zeros(self.wiper.tot)
@@ -368,11 +384,12 @@ class WipeSurface:
 
         clean_s = time.monotonic()
         contact = np.abs(h_val - min_h) < 1e-3
-        covered_triangles = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
-        visited = np.zeros(self.num_triangles)
+        covered_triangles = numba.typed.Dict.empty(numba.types.int64,
+            numba.types.float64)
+        visited = numba.typed.Dict.empty(numba.types.int64, numba.types.boolean)
         for i in range(self.wiper.tot):
             tind = h_t_correspondence[i]
-            if tind > -1 and not visited[tind]:
+            if tind > -1 and visited.get(tind, False) == False:
                 covered_triangles.update(interpolate_contact(self.verts,
                     self.inds, tind, visited, contact, h_val,
                     self.wiper.max_h, self.wiper.width,
@@ -407,6 +424,72 @@ class WipeSurface:
             colormap="jet", feature="faces")
 
 
+def parallel_get_covered_triangles(transforms, coverages, ws_obj, verts, inds,
+    max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy, id_top_points, lam,
+    id_norm, normals, t_neighbors, offset=0, chunk=32):
+    n = len(transforms)
+    print(n, offset)
+    if n > chunk:
+        proc = Process(target=parallel_get_covered_triangles, args=[
+            transforms[:n//2], coverages, ws_obj, verts, inds,
+            max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy,
+            id_top_points, lam, id_norm, normals, t_neighbors, offset, chunk])
+        proc.start()
+        parallel_get_covered_triangles(transforms[n//2:], coverages, ws_obj,
+            verts, inds, max_h, width, height, rows, cols, tot, dx, dy,
+            Qx, Qy, id_top_points, lam, id_norm, normals, t_neighbors,
+            offset=offset+n//2, chunk=chunk)
+        proc.join()
+    else:
+        for t_ind, t in enumerate(transforms):
+            R, p = t
+            H = np.array(math.se3.homogeneous((R,p)))
+            H_i = np.array(math.se3.homogeneous(math.se3.inv((R,p))))
+            R_mat = H[:3,:3]
+            norm = R_mat @ id_norm
+            top_points = (H @ id_top_points.T).T
+
+            min_h = np.zeros(tot)
+            h_t_correspondence = -np.ones(tot, dtype=np.long)
+            hit_flag = False
+            for i in range(tot):
+                start_pt = top_points[i][:3]
+                hit, pt = ws_obj.geometry().rayCast_ext(
+                    start_pt, norm)
+                if hit >= 0:
+                    hit_flag = True
+                    pt = np.array(pt)
+                    min_h[i] = max_h - np.linalg.norm(start_pt - pt)
+                    if min_h[i] >= 0:
+                        h_t_correspondence[i] = hit
+            if not hit_flag:
+                coverages[offset+t_ind] = {}
+            h = cp.Variable(tot)
+            objective = cp.Minimize(cp.sum_squares(h / max_h)
+                + lam * (cp.quad_form(h, Qy)
+                + cp.quad_form(h, Qx)))
+            min_h = np.maximum(min_h, 0)
+            constraints = [h <= max_h, h >= min_h]
+            prob = cp.Problem(objective, constraints)
+            result = prob.solve()
+            h_val = h.value
+
+            contact = np.abs(h_val - min_h) < 1e-3
+            covered_triangles = numba.typed.Dict.empty(numba.types.int64,
+                numba.types.float64)
+            visited = numba.typed.Dict.empty(numba.types.int64,
+                numba.types.boolean)
+            for i in range(tot):
+                tind = h_t_correspondence[i]
+                if tind > -1 and visited.get(tind, False) == False:
+                    covered_triangles.update(interpolate_contact(verts,
+                        inds, tind, visited, contact, h_val, max_h, width,
+                        height, rows, cols, dx, dy, lam, norm, H_i, normals,
+                        t_neighbors
+                    ))
+            coverages[offset+t_ind] = dict(covered_triangles)
+
+
 @jit(nopython=True)
 def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
     width, height, rows, cols, dx, dy, lam, norm, H_i, normals, t_neighbors,
@@ -415,7 +498,7 @@ def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
     covered = numba.typed.Dict.empty(numba.types.int64, numba.types.float64)
     while len(open) > 0:
         triangle = open.pop()
-        visited[triangle] = 1
+        visited[triangle] = True
         centroid = np.zeros(4)
         sum_coords = np.zeros(3)
         for i in range(3):
@@ -452,8 +535,8 @@ def interpolate_contact(verts, inds, triangle, visited, grid, heights, max_h,
             if coverage > 0:
                 covered[triangle] = coverage
             for i in range(len(t_neighbors[triangle])):
-                if not visited[t_neighbors[triangle][i]]:
-                    open.append(t_neighbors[triangle][i])
+                if visited.get(t_neighbors[triangle, i], False) == False:
+                    open.append(t_neighbors[triangle, i])
     return covered
 
 

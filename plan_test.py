@@ -20,11 +20,15 @@ def main():
     wiper_obj.geometry().loadFile("wiper.off")
     wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
     wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
+    wiper_handle = world.makeRigidObject("wiper_handle")
+    wiper_handle.geometry().loadFile("wiper_handle.off")
+    wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
 
     size = 10
     max_wipe = 1
     wipe_ind = 0
-    wiper = disinfection.Wiper(wiper_obj, rows=size, cols=size, lam=0.5,
+    wiper = disinfection.Wiper(wiper_obj, wiper_handle,
+        rows=size, cols=size, lam=0.5,
         gamma_0=0.8, beta_0=10)
     ws = disinfection.WipeSurface("tm", obj, wiper)
 
