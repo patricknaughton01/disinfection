@@ -30,8 +30,13 @@ def main():
     obj = world.makeRigidObject("tm")
     oort = 1/(2**0.5)
     g = obj.geometry()
-    g.loadFile("rod.off")
-    obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
+    g.loadFile("keys.off")
+    # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
+    # vg_obj = world.makeRigidObject("vg")
+    # vg_obj.geometry().loadFile("keys.off")
+    # vg_obj.geometry().set(vg_obj.geometry().convert("VolumeGrid"))
+    # vg_obj.geometry().setCollisionMargin(0.5)
+    # vg_obj.appearance().setColor(0.3, 0.5, 0.5, 0.0)
 
     wiper_obj = world.makeRigidObject("wiper")
     wiper_obj.geometry().loadFile("wiper.off")
@@ -56,6 +61,8 @@ def main():
         wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
             cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
         ws = WipeSurface("tm", obj, wiper)
+        # R, t = wiper.getDesiredTransform([0,0,0], [0, -0.25, 1], [1, 0, 0], 0.1)
+        # wiper.setTransform(R.T.flatten().tolist(), t.tolist())
         wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
         gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.01,0.0]), ws)
         if TIMING:
@@ -86,6 +93,7 @@ def main():
         #     oort, 0, -oort], [-1.5, 0.5, 2]))
         vis.show()
         # time.sleep(3)
+        ind = 0
         while vis.shown():
             # sim.simulate(dt)
             # R, t = wiper.obj.getTransform()
@@ -137,6 +145,20 @@ class Planner:
         self.wipes = []
         self.offsets = None
         self.cache = {}
+
+    def gen_transforms(self, s_t, e_t, step_size):
+        dist = math.se3.distance(e_t, s_t, Rweight=0.0)
+        num_steps = int(dist / step_size)
+        if num_steps <= 0:
+            return [s_t, e_t]
+        interpolants = []
+        interpolator = math.se3.interpolator(s_t, e_t)
+        for i in range(num_steps):
+            t = interpolator(i / num_steps)
+            interpolants.append(t)
+        if dist % step_size != 0:
+            interpolants.append(e_t)
+        return interpolants
 
     def eval_wipe(self, x):
         """Evaluate a wipe whose parameters are encoded in the 5-vector x
@@ -578,6 +600,9 @@ class Wiper:
         return self.obj.getTransform()
 
     def getDesiredTransform(self, pt, z_d, move_vec, theta):
+        pt = np.array(pt)
+        z_d = np.array(z_d)
+        move_vec = np.array(move_vec)
         y_d = np.cross(z_d, move_vec)
         n_y = np.linalg.norm(y_d)
         if n_y == 0:
