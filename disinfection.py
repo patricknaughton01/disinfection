@@ -207,7 +207,7 @@ class Planner:
         total_gamma = combine_gamma(total_gamma, gamma)
         total_reduction = reduction(self.surface.infection_level, total_gamma)
         self.wiper.setTransform(*orig_transform)
-        self.cache[key] = -total_reduction + 0.01 * dist
+        self.cache[key] = -total_reduction + 1 * dist
         return self.cache[key]
 
     def get_wipe(self):
