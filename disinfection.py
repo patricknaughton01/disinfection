@@ -533,10 +533,10 @@ def parallel_get_covered_triangles(transforms, coverages, ws_obj, verts, inds,
             visited = numba.typed.Dict.empty(numba.types.int64,
                 numba.types.boolean)
             for i in range(tot):
-                tind = h_t_correspondence[i]
-                if tind > -1 and visited.get(tind, False) == False:
+                tri_ind = h_t_correspondence[i]
+                if tri_ind > -1 and visited.get(tri_ind, False) == False:
                     covered_triangles.update(interpolate_contact(verts,
-                        inds, tind, visited, contact, h_val, max_h, width,
+                        inds, tri_ind, visited, contact, h_val, max_h, width,
                         height, rows, cols, dx, dy, lam, norm, H_i, normals,
                         t_neighbors
                     ))
