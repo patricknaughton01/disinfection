@@ -25,126 +25,16 @@ world = klampt.WorldModel()
 DEBUG = False
 TIMING = False
 DISPLAY = True
-global_ws = '123'
-
-def main():
-    global world
-    obj = world.makeRigidObject("tm")
-    oort = 1/(2**0.5)
-    g = obj.geometry()
-    g.loadFile("keys.off")
-    # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
-    # vg_obj = world.makeRigidObject("vg")
-    # vg_obj.geometry().loadFile("keys.off")
-    # vg_obj.geometry().set(vg_obj.geometry().convert("VolumeGrid"))
-    # vg_obj.geometry().setCollisionMargin(0.5)
-    # vg_obj.appearance().setColor(0.3, 0.5, 0.5, 0.0)
-
-    wiper_obj = world.makeRigidObject("wiper")
-    wiper_obj.geometry().loadFile("wiper.off")
-    wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
-    wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
-    # wiper_obj.appearance().setColor(1,0,1,1)
-    wiper_handle = world.makeRigidObject("wiper_handle")
-    wiper_handle.geometry().loadFile("wiper_handle.off")
-    wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
-
-    dt = 0.1
-    step = 0.01
-    max = 1.0
-    min = -0.1
-    state = "left"
-
-    sizes = [10, 30, 50]
-    RUNS = 1
-    if TIMING:
-        RUNS = 11
-    for i in range(1):#len(sizes)):
-        wiper = Wiper(wiper_obj, wiper_handle, rows=sizes[i],
-            cols=sizes[i], lam=0, gamma_0=1.0, beta_0=100)
-        ws = WipeSurface("tm", obj, wiper)
-        global_ws = ws
-        # R, t = wiper.getDesiredTransform([0,0,0], [0, -0.25, 1], [1, 0, 0], 0.1)
-        # wiper.setTransform(R.T.flatten().tolist(), t.tolist())
-        wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
-        gamma, _ = wiper.eval_wipe_step(wiper.getTransform(), ([1,0,0,0,1,0,0,0,1], [0.0,0.01,0.0]), ws)
-        if TIMING:
-            start_time = time.monotonic()
-            for j in range(RUNS):
-                covered = ws.get_covered_triangles()
-                t = np.random.rand(3) * 0.9
-                t[2] = 0
-                wiper.setTransform([1,0,0,0,1,0,0,0,1], t)
-            end_time = time.monotonic()
-            print(len(wiper.ray_t))
-            print("\t\t".join(("Ray", "Opt", "Clean")))
-            print("\t".join(("Mean", "Std", "Mean", "Std", "Mean", "std")))
-            print(",".join((f"{np.mean(wiper.ray_t[1:]):.4g}",
-                f"{np.std(wiper.ray_t[1:]):.4g}",
-                f"{np.mean(wiper.opt_t[1:]):.4g}",
-                f"{np.std(wiper.opt_t[1:]):.4g}",
-                f"{np.mean(wiper.clean_t[1:]):.4g}",
-                f"{np.std(wiper.clean_t[1:]):.4g}")))
-            print("Average total time: {:.4g}".format( (end_time - start_time)/RUNS ))
-    # ws.update_infection(ws.get_covered_triangles())
-    # ws.update_infection(gamma)
-    ws.update_colors()
-    planner = Planner(ws, wiper)
-    points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
-        ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
-    args = []
-    for i, pt in enumerate(points):
-        args.append((pt, wiper.max_h, wiper.width, wiper.height, wiper.rows,
-            wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
-            wiper.id_top_points, wiper.lam, wiper.id_norm))
-    with Pool(12) as p:
-        covers = p.starmap(parallel_get_covered_triangles, args)
-    print(covers)
-    # parallel_get_covered_triangles(points, shared_list, ws.obj, ws.verts,
-    #     ws.inds, wiper.max_h, wiper.width, wiper.height, wiper.rows,
-    #     wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
-    #     wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
-    #     ws.t_neighbors)
-    # shared_dict = manager.dict()
-    # parallel_compute_gamma(points, shared_list, ws.t_normals, shared_dict,
-    #     len(points), wiper.gamma_0, wiper.beta_0)
-    # ws.update_infection(shared_dict)
-    ws.update_colors()
-    if DISPLAY:
-        vis.add("world", world)
-        # vis.getViewport().setTransform(([0, -1, 0,
-        #     -oort, 0, -oort,
-        #     oort, 0, -oort], [-1.5, 0.5, 2]))
-        vis.show()
-        # time.sleep(3)
-        ind = 0
-        print("Num interpolated points", len(points))
-        while vis.shown():
-            # if ind < len(points):
-            #     wiper.setTransform(*points[ind])
-            #     ind += 1
-            #     time.sleep(0.1)
-            # sim.simulate(dt)
-            # R, t = wiper.obj.getTransform()
-            # if state == "left":
-            #     if t[1] < max:
-            #         move_t = list(t[:])
-            #         move_t[1] += step
-            #         start = time.monotonic()
-            #         wiper.wipe_step((R,t), (R, move_t), ws)
-            #         print(time.monotonic() - start)
-            #     else:
-            #         state = "right"
-            # elif state == "right":
-            #     if t[1] > min:
-            #         move_t = list(t[:])
-            #         move_t[1] -= step
-            #         wiper.wipe_step((R,t), (R,move_t), ws)
-            #     else:
-            #         state = "stop"
-            time.sleep(dt)
-        vis.show(False)
-        vis.kill()
+obj = world.makeRigidObject("tm")
+oort = 1/(2**0.5)
+g = obj.geometry()
+g.loadFile("keys.off")
+# obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
+# vg_obj = world.makeRigidObject("vg")
+# vg_obj.geometry().loadFile("keys.off")
+# vg_obj.geometry().set(vg_obj.geometry().convert("VolumeGrid"))
+# vg_obj.geometry().setCollisionMargin(0.5)
+# vg_obj.appearance().setColor(0.3, 0.5, 0.5, 0.0)
 
 
 @jit(nopython=True)
@@ -488,7 +378,6 @@ def parallel_get_covered_triangles(transform,
     max_h, width, height, rows, cols, tot, dx, dy, Qx, Qy, id_top_points, lam,
     id_norm):
     global global_ws
-    print("Global wipesurface", global_ws)
     R, p = transform
     H = np.array(math.se3.homogeneous((R,p)))
     H_i = np.array(math.se3.homogeneous(math.se3.inv((R,p))))
@@ -510,8 +399,7 @@ def parallel_get_covered_triangles(transform,
             if min_h[i] >= 0:
                 h_t_correspondence[i] = hit
     if not hit_flag:
-        return numba.typed.Dict.empty(numba.types.int64,
-            numba.types.float64)
+        return {}
     h = cp.Variable(tot)
     objective = cp.Minimize(cp.sum_squares(h / max_h)
         + lam * (cp.quad_form(h, Qy)
@@ -532,10 +420,10 @@ def parallel_get_covered_triangles(transform,
         if tind > -1 and visited.get(tind, False) == False:
             covered_triangles.update(interpolate_contact(global_ws.verts,
                 global_ws.inds, tind, visited, contact, h_val, max_h, width,
-                height, rows, cols, dx, dy, lam, norm, H_i, global_ws.normals,
+                height, rows, cols, dx, dy, lam, norm, H_i, global_ws.t_normals,
                 global_ws.t_neighbors
             ))
-    return covered_triangles
+    return dict(covered_triangles)
 
 
 @jit(nopython=True)
@@ -823,6 +711,81 @@ def slow_compute_gamma(gamma_0, beta_0, cover, dists):
     for key in cover:
         gamma[key] = (1 - gamma_0 * cover[key]) ** (beta_0 * dists[key])
     return gamma
+
+
+wiper_obj = world.makeRigidObject("wiper")
+wiper_obj.geometry().loadFile("wiper.off")
+wiper_obj.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
+wiper_obj.appearance().setColor(0.5,0.5,0.5,0.2)
+# wiper_obj.appearance().setColor(1,0,1,1)
+wiper_handle = world.makeRigidObject("wiper_handle")
+wiper_handle.geometry().loadFile("wiper_handle.off")
+wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
+wiper = Wiper(wiper_obj, wiper_handle, rows=10,
+    cols=10, lam=0, gamma_0=1.0, beta_0=100)
+ws = WipeSurface("tm", obj, wiper)
+global_ws = ws
+
+def main():
+    global world
+    dt = 0.1
+    start = time.monotonic()
+    planner = Planner(ws, wiper)
+    points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
+        ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
+    args = []
+    for i, pt in enumerate(points):
+        args.append((pt, wiper.max_h, wiper.width, wiper.height, wiper.rows,
+            wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
+            wiper.id_top_points, wiper.lam, wiper.id_norm))
+    with Pool(12) as p:
+        covers = p.starmap(parallel_get_covered_triangles, args)
+    print("Time: ", time.monotonic() - start)
+    # parallel_get_covered_triangles(points, shared_list, ws.obj, ws.verts,
+    #     ws.inds, wiper.max_h, wiper.width, wiper.height, wiper.rows,
+    #     wiper.cols, wiper.tot, wiper.dx, wiper.dy, wiper.Qx, wiper.Qy,
+    #     wiper.id_top_points, wiper.lam, wiper.id_norm, ws.t_normals,
+    #     ws.t_neighbors)
+    # shared_dict = manager.dict()
+    # parallel_compute_gamma(points, shared_list, ws.t_normals, shared_dict,
+    #     len(points), wiper.gamma_0, wiper.beta_0)
+    # ws.update_infection(shared_dict)
+    ws.update_colors()
+    if DISPLAY:
+        vis.add("world", world)
+        # vis.getViewport().setTransform(([0, -1, 0,
+        #     -oort, 0, -oort,
+        #     oort, 0, -oort], [-1.5, 0.5, 2]))
+        vis.show()
+        # time.sleep(3)
+        ind = 0
+        print("Num interpolated points", len(points))
+        while vis.shown():
+            # if ind < len(points):
+            #     wiper.setTransform(*points[ind])
+            #     ind += 1
+            #     time.sleep(0.1)
+            # sim.simulate(dt)
+            # R, t = wiper.obj.getTransform()
+            # if state == "left":
+            #     if t[1] < max:
+            #         move_t = list(t[:])
+            #         move_t[1] += step
+            #         start = time.monotonic()
+            #         wiper.wipe_step((R,t), (R, move_t), ws)
+            #         print(time.monotonic() - start)
+            #     else:
+            #         state = "right"
+            # elif state == "right":
+            #     if t[1] > min:
+            #         move_t = list(t[:])
+            #         move_t[1] -= step
+            #         wiper.wipe_step((R,t), (R,move_t), ws)
+            #     else:
+            #         state = "stop"
+            time.sleep(dt)
+        vis.show(False)
+        vis.kill()
 
 
 if __name__ == "__main__":
