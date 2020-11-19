@@ -1,9 +1,9 @@
+import mesh_to_sdf
 import klampt
 import time
 import sys
 import numpy as np
 import cvxpy as cp
-import faulthandler
 # import matplotlib.pyplot as plt
 import scipy as sp
 import scipy.spatial as spatial
@@ -11,6 +11,10 @@ import scipy.sparse as sparse
 import scipy.optimize as opt
 import math as pmath
 import numba
+import trimesh
+import skimage
+import skimage.measure
+import faulthandler
 faulthandler.enable()
 
 from klampt import vis
@@ -31,6 +35,32 @@ def main():
     oort = 1/(2**0.5)
     g = obj.geometry()
     g.loadFile("keys.off")
+    tm = g.getTriangleMesh()
+    verts = np.array(tm.vertices).reshape((-1,3))
+    print(verts[:, 0].min(), verts[:, 0].max())
+    print(verts[:, 1].min(), verts[:, 1].max())
+    print(verts[:, 2].min(), verts[:, 2].max())
+    inds = np.array(tm.indices).reshape((-1,3))
+    tmp_mesh = trimesh.Trimesh(vertices=verts, faces=inds,
+        process=False)
+    voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, 64, pad=True)
+    inflated_verts, inflated_inds, normals, _ = \
+        skimage.measure.marching_cubes(voxels, level=0)
+    print(inflated_verts[:, 0].min(), inflated_verts[:, 0].max())
+    print(inflated_verts[:, 1].min(), inflated_verts[:, 1].max())
+    print(inflated_verts[:, 2].min(), inflated_verts[:, 2].max())
+    # inflated_verts[:, 0] = (inflated_verts[:, 0] + 1) / 2
+    # inflated_verts[:, 1] = (inflated_verts[:, 1] + 1) / 2
+    # inflated_verts[:, 2] = (inflated_verts[:, 2] + 1) * (0.13/2)
+    inflated_tm = klampt.TriangleMesh()
+    for v in inflated_verts.flatten():
+        inflated_tm.vertices.append(float(v))
+    for i in inflated_inds.flatten():
+        inflated_tm.indices.append(int(i))
+    inflated_obj = world.makeRigidObject("itm")
+    inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
+    inflated_obj.appearance().setColor(1,1,1)
+    inflated_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     # vg_obj = world.makeRigidObject("vg")
     # vg_obj.geometry().loadFile("keys.off")
@@ -45,7 +75,7 @@ def main():
     # wiper_obj.appearance().setColor(1,0,1,1)
     wiper_handle = world.makeRigidObject("wiper_handle")
     wiper_handle.geometry().loadFile("wiper_handle.off")
-    wiper_handle.geometry().set(wiper_obj.geometry().convert("VolumeGrid"))
+    wiper_handle.geometry().set(wiper_handle.geometry().convert("VolumeGrid"))
 
     dt = 0.1
     step = 0.01
@@ -89,16 +119,17 @@ def main():
 
     wiper = Wiper(wiper_obj, wiper_handle, rows=10,
         cols=10, lam=0, gamma_0=1.0, beta_0=100)
+    wiper.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
     ws = WipeSurface("tm", obj, wiper)
-    start = time.monotonic()
-    planner = Planner(ws, wiper)
-    points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
-        ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
-    covers = []
-    for i, pt in enumerate(points):
-        wiper.setTransform(*pt)
-        covers.append(ws.get_covered_triangles())
-    print("Time", time.monotonic() - start)
+    # start = time.monotonic()
+    # planner = Planner(ws, wiper)
+    # points = planner.gen_transforms(([1,0,0,0,1,0,0,0,1],[1,1,0]),
+    #     ([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0]), 0.01)
+    # covers = []
+    # for i, pt in enumerate(points):
+    #     wiper.setTransform(*pt)
+    #     covers.append(ws.get_covered_triangles())
+    # print("Time", time.monotonic() - start)
     if DISPLAY:
         vis.add("world", world)
         # vis.getViewport().setTransform(([0, -1, 0,
@@ -261,6 +292,7 @@ class Planner:
 
 class WipeSurface:
     def __init__(self, name, obj, wiper):
+        global world
         self.name = name
         self.obj = obj
         self.tm = self.obj.geometry().getTriangleMesh()
@@ -268,6 +300,25 @@ class WipeSurface:
             (len(self.tm.vertices)//3,3))
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
+
+        # tmp_mesh = trimesh.Trimesh(vertices=self.verts, faces=self.inds,
+        #     process=False)
+        # voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, 32, pad=True)
+        # self.inflated_verts, self.inflated_inds, normals, _ = \
+        #     skimage.measure.marching_cubes(voxels, level=0.1)
+        # print(self.inflated_verts.shape)
+        # print(self.inflated_inds.shape)
+        # inflated_tm = klampt.TriangleMesh()
+        # print(len(inflated_tm.vertices))
+        # print(len(inflated_tm.indices))
+        # for v in self.inflated_verts.flatten():
+        #     inflated_tm.vertices.append(float(v))
+        # for i in self.inflated_inds.flatten():
+        #     inflated_tm.indices.append(int(i))
+        # inflated_obj = world.makeRigidObject("itm")
+        # inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
+        # inflated_obj.appearance().setColor(1,1,1)
+
         R, t = self.obj.getTransform()
         R = np.array(R).reshape(3, -1).T
         t = np.array(t)
@@ -498,9 +549,9 @@ class Wiper:
         self.width = 0.1
         self.height = 0.1
         self.handle_offset = np.array([
-            [0,0,-1,self.width],
+            [1,0,0,0],
             [0,1,0,0],
-            [1,0,0,self.max_h],
+            [0,0,1,self.max_h],
             [0,0,0,1]], dtype=np.float64)
         self.dx = self.width / (self.cols - 1)
         self.dy = self.height / (self.rows - 1)
