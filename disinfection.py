@@ -34,33 +34,7 @@ def main():
     obj = world.makeRigidObject("tm")
     oort = 1/(2**0.5)
     g = obj.geometry()
-    g.loadFile("keys.off")
-    tm = g.getTriangleMesh()
-    verts = np.array(tm.vertices).reshape((-1,3))
-    print(verts[:, 0].min(), verts[:, 0].max())
-    print(verts[:, 1].min(), verts[:, 1].max())
-    print(verts[:, 2].min(), verts[:, 2].max())
-    inds = np.array(tm.indices).reshape((-1,3))
-    tmp_mesh = trimesh.Trimesh(vertices=verts, faces=inds,
-        process=False)
-    voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, 64, pad=True)
-    inflated_verts, inflated_inds, normals, _ = \
-        skimage.measure.marching_cubes(voxels, level=0)
-    print(inflated_verts[:, 0].min(), inflated_verts[:, 0].max())
-    print(inflated_verts[:, 1].min(), inflated_verts[:, 1].max())
-    print(inflated_verts[:, 2].min(), inflated_verts[:, 2].max())
-    # inflated_verts[:, 0] = (inflated_verts[:, 0] + 1) / 2
-    # inflated_verts[:, 1] = (inflated_verts[:, 1] + 1) / 2
-    # inflated_verts[:, 2] = (inflated_verts[:, 2] + 1) * (0.13/2)
-    inflated_tm = klampt.TriangleMesh()
-    for v in inflated_verts.flatten():
-        inflated_tm.vertices.append(float(v))
-    for i in inflated_inds.flatten():
-        inflated_tm.indices.append(int(i))
-    inflated_obj = world.makeRigidObject("itm")
-    inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
-    inflated_obj.appearance().setColor(1,1,1)
-    inflated_obj.setTransform([1,0,0,0,1,0,0,0,1], [0.0,0.0,0.0])
+    g.loadFile("lumps.off")
     # obj.setTransform([1, 0, 0, 0, -oort, oort, 0, -oort, -oort], [0,0.2,0])
     # vg_obj = world.makeRigidObject("vg")
     # vg_obj.geometry().loadFile("keys.off")
@@ -301,23 +275,29 @@ class WipeSurface:
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
 
-        # tmp_mesh = trimesh.Trimesh(vertices=self.verts, faces=self.inds,
-        #     process=False)
-        # voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, 32, pad=True)
-        # self.inflated_verts, self.inflated_inds, normals, _ = \
-        #     skimage.measure.marching_cubes(voxels, level=0.1)
-        # print(self.inflated_verts.shape)
-        # print(self.inflated_inds.shape)
-        # inflated_tm = klampt.TriangleMesh()
-        # print(len(inflated_tm.vertices))
-        # print(len(inflated_tm.indices))
-        # for v in self.inflated_verts.flatten():
-        #     inflated_tm.vertices.append(float(v))
-        # for i in self.inflated_inds.flatten():
-        #     inflated_tm.indices.append(int(i))
-        # inflated_obj = world.makeRigidObject("itm")
-        # inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
-        # inflated_obj.appearance().setColor(1,1,1)
+        vmins = np.array([self.verts[:,0].min(), self.verts[:,1].min(),
+            self.verts[:,2].min()])
+        tmp_mesh = trimesh.Trimesh(vertices=self.verts, faces=self.inds,
+            process=False)
+        res = 64
+        voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, res, pad=True)
+        inflated_verts, inflated_inds, normals, _ = \
+            skimage.measure.marching_cubes(voxels, level=0.0)
+        zero_ivmins = np.array([inflated_verts[:,0].min(),
+            inflated_verts[:,1].min(), inflated_verts[:,2].min()])
+        offsets = zero_ivmins - vmins
+        inflated_verts, inflated_inds, normals, _ = \
+            skimage.measure.marching_cubes(voxels, level=0.1)
+        inflated_verts = (inflated_verts - offsets) / (res-1)
+        inflated_tm = klampt.TriangleMesh()
+        for v in inflated_verts.flatten():
+            inflated_tm.vertices.append(float(v))
+        for i in inflated_inds.flatten():
+            inflated_tm.indices.append(int(i))
+        inflated_obj = world.makeRigidObject("itm")
+        inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
+        inflated_obj.appearance().setColor(0,1,1, 0.25)
+        self.inflated_obj = inflated_obj
 
         R, t = self.obj.getTransform()
         R = np.array(R).reshape(3, -1).T
