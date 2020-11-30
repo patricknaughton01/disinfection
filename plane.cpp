@@ -28,6 +28,7 @@ void Plane::init_id(){
 
 void Plane::merge(std::shared_ptr<Plane> other){
 	avg_vector(norm, other->norm, area, other->area);
+	normalize_vector(norm);
 	avg_vector(centroid, other->centroid, area, other->area);
 	area += other->area;
 	neighbor_union(other);
@@ -38,7 +39,10 @@ void Plane::neighbor_union(std::shared_ptr<Plane> other){
 	for(auto iter = other->neighbors.begin(); iter != other->neighbors.end();
 		iter++)
 	{
-		neighbors.insert(*iter);
+		if(*this != **iter){
+			// Don't add self to list of neighbors
+			neighbors.insert(*iter);
+		}
 	}
 }
 
@@ -67,6 +71,10 @@ bool Plane::operator==(const Plane &other) const{
 	return id == other.id;
 }
 
+bool Plane::operator!=(const Plane &other) const{
+	return id != other.id;
+}
+
 std::ostream& operator<<(std::ostream &out, const Plane &p){
 	out << "Plane(" << p.id << ")";
 	return out;
@@ -76,8 +84,8 @@ size_t Plane::hash() const{
 	return id;
 }
 
-plane_pair get_pair(const std::shared_ptr<Plane> a,
-	const std::shared_ptr<Plane> b)
+plane_pair get_pair(std::shared_ptr<Plane> a,
+	std::shared_ptr<Plane> b)
 {
 	plane_pair p;
 	if (*a < *b){

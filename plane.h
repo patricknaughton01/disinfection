@@ -15,6 +15,7 @@ typedef std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
 typedef std::pair<std::shared_ptr<Plane>, std::shared_ptr<Plane>> plane_pair;
 
 class Plane{
+	friend std::ostream& operator<<(std::ostream &out, const Plane &p);
 private:
 	std::vector<REAL> norm;
 	std::vector<REAL> centroid;
@@ -22,9 +23,9 @@ private:
 		neighbors;
 	REAL area;
 	static plane_id gen_id;
-	plane_id id;
 	void init_id();
 public:
+	plane_id id;
 	Plane();
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a);
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c,
@@ -38,12 +39,12 @@ public:
 		get_neighbors() const;
 	bool operator<(const Plane &other) const;
 	bool operator==(const Plane &other) const;
-	friend std::ostream& operator<<(std::ostream &out, const Plane &p);
+	bool operator!=(const Plane &other) const;
 	size_t hash() const;
 };
 
-plane_pair get_pair(const std::shared_ptr<Plane> a,
-	const std::shared_ptr<Plane> b);
+plane_pair get_pair(std::shared_ptr<Plane> a,
+	std::shared_ptr<Plane> b);
 
 struct PairPointerHash{
     size_t operator()(const std::shared_ptr<plane_pair> &p) const;

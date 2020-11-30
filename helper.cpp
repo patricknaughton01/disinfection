@@ -1,5 +1,6 @@
 
 #include <vector>
+#include <cmath>
 #include "helper.h"
 
 /*
@@ -15,4 +16,25 @@ void avg_vector(std::vector<REAL> &a, const std::vector<REAL> &b,
 	for(size_t i = 0; i < a.size(); i++){
 		a[i] = (weight_a * a[i] + weight_b * b[i]) / w_sum;
 	}
+}
+
+REAL normal(std::vector<REAL> &a){
+	REAL sum = 0;
+	for(auto iter = a.begin(); iter != a.end(); iter++){
+		sum += *iter * *iter;
+	}
+	return std::sqrt(sum);
+}
+
+void divide_vector(std::vector<REAL> &a, REAL d){
+	if(d != 0){
+		for(auto iter = a.begin(); iter != a.end(); iter++){
+			*iter /= d;
+		}
+	}
+}
+
+void normalize_vector(std::vector<REAL> &a){
+	REAL n = normal(a);
+	divide_vector(a, n);
 }

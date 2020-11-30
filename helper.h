@@ -12,6 +12,9 @@
 
 void avg_vector(std::vector<REAL> &a, const std::vector<REAL> &b,
 	REAL weight_a=1.0, REAL weight_b=1.0);
+REAL normal(std::vector<REAL> &a);
+void divide_vector(std::vector<REAL> &a, REAL d);
+void normalize_vector(std::vector<REAL> &a);
 
 template <class T>
 void print(T s, T e){
