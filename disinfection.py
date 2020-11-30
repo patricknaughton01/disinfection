@@ -275,27 +275,12 @@ class WipeSurface:
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
 
-        vmins = np.array([self.verts[:,0].min(), self.verts[:,1].min(),
-            self.verts[:,2].min()])
-        tmp_mesh = trimesh.Trimesh(vertices=self.verts, faces=self.inds,
-            process=False)
-        res = 64
-        voxels = mesh_to_sdf.mesh_to_voxels(tmp_mesh, res, pad=True)
-        inflated_verts, inflated_inds, normals, _ = \
-            skimage.measure.marching_cubes(voxels, level=0.0)
-        zero_ivmins = np.array([inflated_verts[:,0].min(),
-            inflated_verts[:,1].min(), inflated_verts[:,2].min()])
-        offsets = zero_ivmins - vmins
-        inflated_verts, inflated_inds, normals, _ = \
-            skimage.measure.marching_cubes(voxels, level=0.1)
-        inflated_verts = (inflated_verts - offsets) / (res-1)
-        inflated_tm = klampt.TriangleMesh()
-        for v in inflated_verts.flatten():
-            inflated_tm.vertices.append(float(v))
-        for i in inflated_inds.flatten():
-            inflated_tm.indices.append(int(i))
+        offset = 0.1
+        self.obj.geometry().setCollisionMargin(offset)
+        vg = self.obj.geometry().convert("VolumeGrid")
+        self.obj.geometry().setCollisionMargin(0)
         inflated_obj = world.makeRigidObject("itm")
-        inflated_obj.geometry().set(klampt.Geometry3D(inflated_tm))
+        inflated_obj.geometry().set(vg.convert("TriangleMesh"))
         inflated_obj.appearance().setColor(0,1,1, 0.25)
         self.inflated_obj = inflated_obj
 
