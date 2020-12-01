@@ -12,6 +12,7 @@ Plane::Plane():area(0){
 Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a):norm(n),
 	centroid(c), area(a){
 	init_id();
+	normalize_vector(norm);
 }
 
 Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c,
@@ -19,6 +20,7 @@ Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c,
 	area(a)
 {
 	init_id();
+	normalize_vector(norm);
 }
 
 void Plane::init_id(){
@@ -76,7 +78,15 @@ bool Plane::operator!=(const Plane &other) const{
 }
 
 std::ostream& operator<<(std::ostream &out, const Plane &p){
-	out << "Plane(" << p.id << ")";
+	out << "Plane(" << p.id << ", (";
+	for(auto iter = p.norm.begin(); iter != p.norm.end(); iter++){
+		out << *iter << ", ";
+	}
+	out << "), (";
+	for(auto iter = p.centroid.begin(); iter != p.centroid.end(); iter++){
+		out << *iter << ", ";
+	}
+	out << "))";
 	return out;
 }
 

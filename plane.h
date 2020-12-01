@@ -21,11 +21,11 @@ private:
 	std::vector<REAL> centroid;
 	std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
 		neighbors;
+	plane_id id;
 	REAL area;
 	static plane_id gen_id;
 	void init_id();
 public:
-	plane_id id;
 	Plane();
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a);
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c,

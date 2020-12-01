@@ -12,12 +12,10 @@
 #include "plane.h"
 #include "plane_finder.h"
 
-#define DEBUG
-
 int main(){
 	plane_set planes;
 	REAL area = 1.0;
-	std::vector<REAL> n1{0, 0, 1.0};
+	std::vector<REAL> n1{0.1, 0, 1.0};
 	std::vector<REAL> n2{0, 0, 1.0};
 	std::vector<REAL> n3{1.0, 0, 0};
 	std::vector<REAL> c1{0, 0, 0};
@@ -35,7 +33,10 @@ int main(){
 	planes.insert(p3);
 	plane_set out;
 	PlaneFinder pf(planes);
+	print_p(planes.begin(), planes.end());
 	pf.simplify_planes(out, 0.5);
+	print_p(planes.begin(), planes.end());
+	print_p(out.begin(), planes.end());
 	return 0;
 }
 
@@ -45,6 +46,7 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 	locs.clear();
 	init_pq();
 	auto min_iter = pq.begin();
+	out = planes;
 
 	#ifdef DEBUG
 		std::cout << "Initial pq:" << std::endl;
@@ -91,7 +93,6 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 		for(auto iter = nPlane->get_neighbors().begin();
 			iter != nPlane->get_neighbors().end(); iter++)
 		{
-			std::cout << "Neighbor: " << (*iter)->id << std::endl;
 			std::shared_ptr<plane_pair> uPair = std::make_shared<plane_pair>(
 				get_pair(nPlane, *iter)
 			);
@@ -99,6 +100,9 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 				std::make_pair(nPlane->score(*iter), uPair));
 			locs[uPair] = in_iter;
 		}
+		out.erase(p1);
+		out.erase(p2);
+		out.insert(nPlane);
 		locs.erase(min_iter->second);
 		pq.erase(min_iter);
 		if(!pq.size()){
