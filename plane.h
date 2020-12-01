@@ -9,7 +9,7 @@ class Plane;
 struct PointerHash;
 struct DerefCompare;
 
-typedef long plane_id;
+typedef long long plane_id;
 typedef std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
 	plane_set;
 typedef std::pair<std::shared_ptr<Plane>, std::shared_ptr<Plane>> plane_pair;

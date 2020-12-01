@@ -8,6 +8,7 @@
 #include <sstream>
 #include <memory>
 #include <stack>
+#include <Eigen/Dense>
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
@@ -61,27 +62,7 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 	while(min_iter->first <= thresh){
 		std::shared_ptr<Plane> p1 = min_iter->second->first;
 		std::shared_ptr<Plane> p2 = min_iter->second->second;
-		for(auto iter = p1->get_neighbors().begin();
-			iter != p1->get_neighbors().end(); iter++)
-		{
-			if(**iter != *p2){
-				auto p1pair = std::make_shared<plane_pair>(get_pair(p1, *iter));
-				auto piter = locs[p1pair];
-				locs.erase(p1pair);
-				pq.erase(piter);
-			}
-		}
-
-		for(auto iter = p2->get_neighbors().begin();
-			iter != p2->get_neighbors().end(); iter++)
-		{
-			if(**iter != *p1){
-				auto p2pair = std::make_shared<plane_pair>(get_pair(p2, *iter));
-				auto piter = locs[p2pair];
-				locs.erase(p2pair);
-				pq.erase(piter);
-			}
-		}
+		clean_neighbors(min_iter->second);
 		std::shared_ptr<Plane> bigger_neighborhood(p1);
 		std::shared_ptr<Plane> smaller_neighborhood(p2);
 		if(p2->get_neighbors().size() > p1->get_neighbors().size()){
@@ -149,6 +130,39 @@ void PlaneFinder::init_pq(){
 				}
 			}
 		}
+	}
+}
+
+void PlaneFinder::clean_neighbors(std::shared_ptr<plane_pair> ppair){
+	clean_neighbors(ppair->first, ppair->second);
+	clean_neighbors(ppair->second, ppair->first);
+}
+
+void PlaneFinder::clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Plane> p2){
+	for(auto iter = p1->get_neighbors().begin();
+		iter != p1->get_neighbors().end(); iter++)
+	{
+		if(**iter != *p2){
+			auto p1pair = std::make_shared<plane_pair>(get_pair(p1, *iter));
+			auto piter = locs[p1pair];
+			locs.erase(p1pair);
+			pq.erase(piter);
+		}
+	}
+}
+
+/*
+ * Each vector in vertices has three elements (spatial coordinates), each
+ * vector in inds also has three elements, the three vertices of that triangle
+ */
+void load_triangle_mesh(const std::vector<std::vector<REAL>> &vertices,
+	const std::vector<std::vector<long long>> &inds)
+{
+	for(auto iter = inds.begin(); iter != inds.end(); iter++){
+		long long ind0 = (*iter)[0], ind1 = (*iter)[1], ind2 = (*iter)[2];
+		Eigen::Vector3d a(vertices[ind0].data());
+		Eigen::Vector3d b(vertices[ind1].data());
+		Eigen::Vector3d c(vertices[ind2].data());
 	}
 }
 
