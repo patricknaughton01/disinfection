@@ -8,6 +8,7 @@
 #include <sstream>
 #include <memory>
 #include <stack>
+#include <cmath>
 #include <Eigen/Dense>
 #include "helper.h"
 #include "plane.h"
@@ -155,14 +156,57 @@ void PlaneFinder::clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Pla
  * Each vector in vertices has three elements (spatial coordinates), each
  * vector in inds also has three elements, the three vertices of that triangle
  */
-void load_triangle_mesh(const std::vector<std::vector<REAL>> &vertices,
-	const std::vector<std::vector<long long>> &inds)
+void PlaneFinder::load_triangle_mesh(
+	const std::vector<std::vector<REAL>> &vertices,
+	const std::vector<std::vector<size_t>> &inds)
 {
+	std::vector<size_t> tmp;
+	// Map vertex i (row) to the triangle indices it borders
+	std::vector<std::vector<size_t>> vmap(vertices.size(), tmp);
+	// Map triangle indices to (pointers to ) planes
+	std::unordered_map<size_t, std::shared_ptr<Plane>> t_to_plane;
+
 	for(auto iter = inds.begin(); iter != inds.end(); iter++){
-		long long ind0 = (*iter)[0], ind1 = (*iter)[1], ind2 = (*iter)[2];
+		size_t tri_ind = iter - inds.begin();
+		// Compute geometric properties of planes
+		size_t ind0 = (*iter)[0], ind1 = (*iter)[1], ind2 = (*iter)[2];
+		// IMPROVE: Could remove Eigen dependency by refactoring just this part.
 		Eigen::Vector3d a(vertices[ind0].data());
 		Eigen::Vector3d b(vertices[ind1].data());
 		Eigen::Vector3d c(vertices[ind2].data());
+		Eigen::Vector3d cen = (a + b + c) / 3.0;
+		Eigen::Vector3d norm = (b - a).cross(c - a);
+		REAL area = std::sqrt(norm.transpose() * norm) / 2;
+		norm /= 2.0 * area;
+		std::vector<REAL> vnorm(norm.data(), norm.data() + norm.size());
+		std::vector<REAL> vcen(cen.data(), cen.data() + cen.size());
+		std::shared_ptr<Plane> p = std::make_shared<Plane>(vnorm, vcen, area);
+		planes.insert(p);
+		t_to_plane[tri_ind] = p;
+		vmap[ind0].push_back(tri_ind);
+		vmap[ind1].push_back(tri_ind);
+		vmap[ind2].push_back(tri_ind);
+	}
+
+	for(size_t i = 0; i < inds.size(); i++){
+		// Map triangle indices to the number of times they border the given
+		// vertex
+		std::unordered_map<size_t, int> count;
+		for(size_t j = 0; j < inds[i].size(); j++){
+			for(size_t k = 0; k < vmap[inds[i][j]].size(); k++){
+				size_t tind = vmap[inds[i][j]][k];
+				if(count.find(tind) == count.end()){
+					count[tind] = 1;
+				}else{
+					count[tind]++;
+					if(count[tind] == 2 && tind != i){
+						// This triangle borders triangle i because tind != i
+						// and it shares (at least) two vertices with triangle i
+						t_to_plane[i]->add_neighbor(t_to_plane[tind]);
+					}
+				}
+			}
+		}
 	}
 }
 

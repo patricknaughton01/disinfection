@@ -23,6 +23,6 @@ public:
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);
 	void load_triangle_mesh(const std::vector<std::vector<REAL>> &vertices,
-		const std::vector<std::vector<long long>> &inds);
+		const std::vector<std::vector<size_t>> &inds);
 	void init_pq();
 };

@@ -18,7 +18,7 @@ void avg_vector(std::vector<REAL> &a, const std::vector<REAL> &b,
 	}
 }
 
-REAL normal(std::vector<REAL> &a){
+REAL get_norm(std::vector<REAL> &a){
 	REAL sum = 0;
 	for(auto iter = a.begin(); iter != a.end(); iter++){
 		sum += *iter * *iter;
@@ -35,6 +35,6 @@ void divide_vector(std::vector<REAL> &a, REAL d){
 }
 
 void normalize_vector(std::vector<REAL> &a){
-	REAL n = normal(a);
+	REAL n = get_norm(a);
 	divide_vector(a, n);
 }
