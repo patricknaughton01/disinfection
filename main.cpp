@@ -64,23 +64,13 @@ int main(){
 	inds[9].push_back(5);
 	inds[10].push_back(1);
 	inds[11].push_back(4);
-	// for(auto iter = inds.begin(); iter != inds.end(); iter++){
-	// 	print(iter->begin(), iter->end());
-	// }
-	PlaneFinder pf;
-	pf.load_triangle_mesh(v, inds);
-	std::cout << "Initial Planes: " << std::endl;
-	std::cout << pf.planes.size() << std::endl;
-	for(auto iter = pf.planes.begin(); iter != pf.planes.end(); iter++){
-		std::cout << **iter << std::endl;
-	}
-	plane_set out;
-	pf.simplify_planes(out, 0.5);
-
-	std::cout << "Final Planes: " << std::endl;
-	std::cout << out.size() << std::endl;
-	for(auto iter = out.begin(); iter != out.end(); iter++){
-		std::cout << **iter << std::endl;
+	std::vector<std::vector<std::vector<REAL>>> out_tm = merge_triangle_mesh(
+		v, inds, 0.5
+	);
+	for(auto it = out_tm.begin(); it != out_tm.end(); it++){
+		std::cout << "Plane " << (it - out_tm.begin()) << std::endl;
+		print((*it)[0].begin(), (*it)[0].end());
+		print((*it)[1].begin(), (*it)[1].end());
 	}
 	return 0;
 }
