@@ -21,9 +21,9 @@ private:
 	std::vector<REAL> centroid;
 	std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
 		neighbors;
-	plane_id id;
-	REAL area;
 	static plane_id gen_id;
+	REAL area;
+	plane_id id;
 	void init_id();
 public:
 	Plane();
@@ -34,9 +34,11 @@ public:
 	void merge(std::shared_ptr<Plane> other);
 	void neighbor_union(std::shared_ptr<Plane> other);
 	void add_neighbor(std::shared_ptr<Plane> other);
+	void remove_neighbor(std::shared_ptr<Plane> other);
 	REAL score(std::shared_ptr<Plane> other) const;
 	const std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>&
 		get_neighbors() const;
+	plane_id get_id() const;
 	bool operator<(const Plane &other) const;
 	bool operator==(const Plane &other) const;
 	bool operator!=(const Plane &other) const;

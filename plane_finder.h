@@ -10,7 +10,6 @@
 
 class PlaneFinder{
 private:
-	plane_set planes;
 	// Use a multimap as a priority queue
 	std::multimap<REAL, std::shared_ptr<plane_pair>> pq;
 	typedef decltype(pq.begin()) pq_iter_t;
@@ -19,6 +18,7 @@ private:
 	void clean_neighbors(std::shared_ptr<plane_pair> ppair);
 	void clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Plane> p2);
 public:
+	plane_set planes;
 	PlaneFinder();
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);

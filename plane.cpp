@@ -52,6 +52,10 @@ void Plane::add_neighbor(std::shared_ptr<Plane> other){
 	neighbors.insert(other);
 }
 
+void Plane::remove_neighbor(std::shared_ptr<Plane> other){
+	neighbors.erase(other);
+}
+
 REAL Plane::score(std::shared_ptr<Plane> other) const{
 	assert_len_equal(norm, other->norm);
 	REAL sum = 0;
@@ -63,6 +67,10 @@ REAL Plane::score(std::shared_ptr<Plane> other) const{
 
 const plane_set& Plane::get_neighbors() const{
 	return neighbors;
+}
+
+plane_id Plane::get_id() const{
+	return id;
 }
 
 bool Plane::operator<(const Plane &other) const{
