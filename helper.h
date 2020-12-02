@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <memory>
 #include <sstream>
 #include <exception>
@@ -64,5 +65,31 @@ struct DerefCompare {
 		std::shared_ptr<T> const &b) const
 	{
 		return *a == *b;
+	}
+};
+
+struct WeakPointerHash{
+	template <typename T>
+    size_t operator()(const std::weak_ptr<T> &a) const{
+		if(auto spt = a.lock()){
+			return spt->hash();
+		}else{
+			return 0;
+		}
+	}
+};
+
+struct WeakDerefCompare {
+	template <typename T>
+	bool operator() (std::weak_ptr<T> const &a,
+		std::weak_ptr<T> const &b) const
+	{
+		auto spta = a.lock();
+		auto sptb = b.lock();
+		if(spta && sptb){
+			return *spta == *sptb;
+		}else{
+			return false;
+		}
 	}
 };

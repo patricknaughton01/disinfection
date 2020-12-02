@@ -19,7 +19,7 @@ class Plane{
 private:
 	std::vector<REAL> norm;
 	std::vector<REAL> centroid;
-	std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
+	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash, WeakDerefCompare>
 		neighbors;
 	static plane_id gen_id;
 	REAL area;
@@ -29,16 +29,18 @@ public:
 	Plane();
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a);
 	Plane(std::vector<REAL> &n, std::vector<REAL> &c,
-		std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
-		&neigh, REAL a);
+		std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+		WeakDerefCompare> &neigh, REAL a);
 	void merge(std::shared_ptr<Plane> other);
 	void neighbor_union(std::shared_ptr<Plane> other);
 	void add_neighbor(std::shared_ptr<Plane> other);
 	void remove_neighbor(std::shared_ptr<Plane> other);
 	REAL score(std::shared_ptr<Plane> other) const;
-	const std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>&
-		get_neighbors() const;
+	const std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+		WeakDerefCompare>& get_neighbors() const;
 	plane_id get_id() const;
+	const std::vector<REAL>& get_norm() const;
+	const std::vector<REAL>& get_centroid() const;
 	bool operator<(const Plane &other) const;
 	bool operator==(const Plane &other) const;
 	bool operator!=(const Plane &other) const;

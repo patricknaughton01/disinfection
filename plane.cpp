@@ -16,7 +16,8 @@ Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a):norm(n),
 }
 
 Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c,
-	plane_set &neigh, REAL a):norm(n), centroid(c), neighbors(neigh),
+	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+	WeakDerefCompare> &neigh, REAL a):norm(n), centroid(c), neighbors(neigh),
 	area(a)
 {
 	init_id();
@@ -41,19 +42,23 @@ void Plane::neighbor_union(std::shared_ptr<Plane> other){
 	for(auto iter = other->neighbors.begin(); iter != other->neighbors.end();
 		iter++)
 	{
-		if(*this != **iter){
-			// Don't add self to list of neighbors
-			neighbors.insert(*iter);
+		if(auto spt = iter->lock()){
+			if(*this != *spt){
+				// Don't add self to list of neighbors
+				add_neighbor(spt);
+			}
 		}
 	}
 }
 
 void Plane::add_neighbor(std::shared_ptr<Plane> other){
-	neighbors.insert(other);
+	std::weak_ptr<Plane> weak(other);
+	neighbors.insert(weak);
 }
 
 void Plane::remove_neighbor(std::shared_ptr<Plane> other){
-	neighbors.erase(other);
+	std::weak_ptr<Plane> weak(other);
+	neighbors.erase(weak);
 }
 
 REAL Plane::score(std::shared_ptr<Plane> other) const{
@@ -65,12 +70,22 @@ REAL Plane::score(std::shared_ptr<Plane> other) const{
 	return 1.0 - sum;
 }
 
-const plane_set& Plane::get_neighbors() const{
+const std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+	WeakDerefCompare>& Plane::get_neighbors() const
+{
 	return neighbors;
 }
 
 plane_id Plane::get_id() const{
 	return id;
+}
+
+const std::vector<REAL>& Plane::get_norm() const{
+	return norm;
+}
+
+const std::vector<REAL>& Plane::get_centroid() const{
+	return centroid;
 }
 
 bool Plane::operator<(const Plane &other) const{
