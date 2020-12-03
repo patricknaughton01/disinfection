@@ -1,4 +1,3 @@
-import mesh_to_sdf
 import klampt
 import time
 import sys
@@ -11,9 +10,6 @@ import scipy.sparse as sparse
 import scipy.optimize as opt
 import math as pmath
 import numba
-import trimesh
-import skimage
-import skimage.measure
 import faulthandler
 faulthandler.enable()
 

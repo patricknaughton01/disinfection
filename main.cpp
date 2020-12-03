@@ -6,7 +6,7 @@
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
-#include "merge_planes.h"
+#include "merge_triangle_mesh.h"
 
 void load_vector(std::vector<std::vector<REAL>> &v, int dim=0);
 
@@ -40,30 +40,32 @@ int main(){
 	std::vector<std::vector<REAL>> v;
 	load_vector(v);
 	std::vector<std::vector<size_t>> inds;
-	for(int i = 0; i < 12; i++){
-		std::vector<size_t> tmp;
-		if(i < 6){
-			tmp.push_back(0);
-			tmp.push_back(i+1);
-		}else{
-			tmp.push_back(7);
-			tmp.push_back(i-5);
-		}
-		inds.push_back(tmp);
-	}
-	inds[0].push_back(5);
-	inds[1].push_back(3);
-	inds[2].push_back(1);
-	inds[3].push_back(6);
-	inds[4].push_back(4);
-	inds[5].push_back(2);
-
-	inds[6].push_back(3);
-	inds[7].push_back(6);
-	inds[8].push_back(2);
-	inds[9].push_back(5);
-	inds[10].push_back(1);
-	inds[11].push_back(4);
+	std::vector<size_t> tmp{0, 1, 5};
+	inds.push_back(tmp);
+	// for(int i = 0; i < 12; i++){
+	// 	std::vector<size_t> tmp;
+	// 	if(i < 6){
+	// 		tmp.push_back(0);
+	// 		tmp.push_back(i+1);
+	// 	}else{
+	// 		tmp.push_back(7);
+	// 		tmp.push_back(i-5);
+	// 	}
+	// 	inds.push_back(tmp);
+	// }
+	// inds[0].push_back(5);
+	// inds[1].push_back(3);
+	// inds[2].push_back(1);
+	// inds[3].push_back(6);
+	// inds[4].push_back(4);
+	// inds[5].push_back(2);
+	//
+	// inds[6].push_back(3);
+	// inds[7].push_back(6);
+	// inds[8].push_back(2);
+	// inds[9].push_back(5);
+	// inds[10].push_back(1);
+	// inds[11].push_back(4);
 	std::vector<std::vector<std::vector<REAL>>> out_tm = merge_triangle_mesh(
 		v, inds, 0.5
 	);

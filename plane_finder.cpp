@@ -14,22 +14,27 @@
 #include "plane.h"
 #include "plane_finder.h"
 
+#define DEBUG
+
 void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 {
 	pq.clear();
 	locs.clear();
 	init_pq();
+	if(!pq.size()){
+		return;
+	}
 	auto min_iter = pq.begin();
 	out = planes;
 
-	#ifdef DEBUG
-		std::cout << "Initial pq:" << std::endl;
-		for(auto iter = pq.begin(); iter != pq.end(); iter++){
-			std::cout << "(" << iter->first << "->(" << *(iter->second->first)
-				<< "," << *(iter->second->second) << ")) ";
-		}
-		std::cout << std::endl;
-	#endif // DEBUG
+	// #ifdef DEBUG
+	// 	std::cout << "Initial pq:" << std::endl;
+	// 	for(auto iter = pq.begin(); iter != pq.end(); iter++){
+	// 		std::cout << "(" << iter->first << "->(" << *(iter->second->first)
+	// 			<< "," << *(iter->second->second) << ")) ";
+	// 	}
+	// 	std::cout << std::endl;
+	// #endif // DEBUG
 
 	// Merge until the best candidate is worse than the given threshold
 	while(min_iter->first <= thresh){
@@ -73,6 +78,11 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 		for(auto iter = pq.begin(); iter != pq.end(); iter++){
 			std::cout << "(" << iter->first << "->(" << *(iter->second->first)
 				<< "," << *(iter->second->second) << ")) ";
+		}
+		std::cout << std::endl;
+		std::cout << "Final planes:" << std::endl;
+		for(auto iter = out.begin(); iter != out.end(); iter++){
+			std::cout << **iter << std::endl;
 		}
 		std::cout << std::endl;
 	#endif // DEBUG

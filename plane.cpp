@@ -101,7 +101,7 @@ bool Plane::operator!=(const Plane &other) const{
 }
 
 std::ostream& operator<<(std::ostream &out, const Plane &p){
-	out << "Plane(" << p.id << ", (";
+	out << "Plane(" << p.id << ", " << p.area << " (";
 	for(auto iter = p.norm.begin(); iter != p.norm.end(); iter++){
 		out << *iter << ", ";
 	}
