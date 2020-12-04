@@ -13,7 +13,8 @@
 
 void avg_vector(std::vector<REAL> &a, const std::vector<REAL> &b,
 	REAL weight_a=1.0, REAL weight_b=1.0);
-REAL get_norm(std::vector<REAL> &a);
+REAL get_norm(const std::vector<REAL> &a);
+REAL get_dist(const std::vector<REAL> &a, const std::vector<REAL> &b);
 void divide_vector(std::vector<REAL> &a, REAL d);
 void normalize_vector(std::vector<REAL> &a);
 
@@ -91,5 +92,18 @@ struct WeakDerefCompare {
 		}else{
 			return false;
 		}
+	}
+};
+
+// Modified from https://stackoverflow.com/a/2595226/10193734
+struct VectorHash {
+	template <typename T>
+	size_t operator()(const std::vector<T>& v) const {
+		std::hash<T> hasher;
+		size_t seed = 0;
+		for (int i : v) {
+			seed ^= hasher(i) + 0x9e3779b9 + (seed<<6) + (seed>>2);
+		}
+		return seed;
 	}
 };

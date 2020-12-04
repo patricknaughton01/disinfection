@@ -18,10 +18,20 @@ void avg_vector(std::vector<REAL> &a, const std::vector<REAL> &b,
 	}
 }
 
-REAL get_norm(std::vector<REAL> &a){
+REAL get_norm(const std::vector<REAL> &a){
 	REAL sum = 0;
 	for(auto iter = a.begin(); iter != a.end(); iter++){
 		sum += *iter * *iter;
+	}
+	return std::sqrt(sum);
+}
+
+REAL get_dist(const std::vector<REAL> &a, const std::vector<REAL> &b){
+	REAL sum = 0;
+	if(a.size() != b.size()){ return -1; }
+	for(size_t i = 0; i < a.size(); i++){
+		REAL d = a[i] - b[i];
+		sum += d*d;
 	}
 	return std::sqrt(sum);
 }

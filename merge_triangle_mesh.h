@@ -4,7 +4,7 @@
 #include "plane_finder.h"
 
 std::vector<std::vector<std::vector<REAL>>> merge_triangle_mesh(
-	const std::vector<std::vector<REAL>> &vertices,
-	const std::vector<std::vector<size_t>> &inds,
+	std::vector<std::vector<REAL>> &vertices,
+	std::vector<std::vector<size_t>> &inds,
 	REAL threshold
 );
