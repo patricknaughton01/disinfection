@@ -2,6 +2,7 @@
 #include <unordered_set>
 #include <vector>
 #include <memory>
+#include <list>
 #include <iostream>
 #include "helper.h"
 
@@ -9,7 +10,7 @@ class Plane;
 struct PointerHash;
 struct DerefCompare;
 
-typedef long long plane_id;
+typedef size_t plane_id;
 typedef std::unordered_set<std::shared_ptr<Plane>, PointerHash, DerefCompare>
 	plane_set;
 typedef std::pair<std::shared_ptr<Plane>, std::shared_ptr<Plane>> plane_pair;
@@ -21,16 +22,18 @@ private:
 	std::vector<REAL> centroid;
 	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash, WeakDerefCompare>
 		neighbors;
+	std::list<plane_id> triangles;
 	static plane_id gen_id;
 	REAL area;
 	plane_id id;
 	void init_id();
 public:
 	Plane();
-	Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a);
-	Plane(std::vector<REAL> &n, std::vector<REAL> &c,
-		std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
-		WeakDerefCompare> &neigh, REAL a);
+	Plane(std::vector<REAL> &n, std::vector<REAL> &c, std::list<plane_id> &t,
+		REAL a);
+	// Plane(std::vector<REAL> &n, std::vector<REAL> &c,
+	// 	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+	// 	WeakDerefCompare> &neigh, REAL a);
 	void merge(std::shared_ptr<Plane> other);
 	void neighbor_union(std::shared_ptr<Plane> other);
 	void add_neighbor(std::shared_ptr<Plane> other);
@@ -38,6 +41,7 @@ public:
 	REAL score(std::shared_ptr<Plane> other) const;
 	const std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
 		WeakDerefCompare>& get_neighbors() const;
+	const std::list<plane_id>& get_triangles() const;
 	plane_id get_id() const;
 	const std::vector<REAL>& get_norm() const;
 	const std::vector<REAL>& get_centroid() const;

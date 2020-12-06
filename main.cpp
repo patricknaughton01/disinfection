@@ -73,11 +73,13 @@ int main(){
 	inds[10].push_back(1);
 	inds[11].push_back(4);
 	inds[0][0] = 8;
-	std::vector<std::vector<std::vector<REAL>>> out_tm = merge_triangle_mesh(
-		v, inds, 0.5
+	std::pair<std::vector<std::vector<std::vector<REAL>>>,
+		std::vector<std::vector<plane_id>>> out_p = merge_triangle_mesh(
+			v, inds, 0.5
 	);
-	for(auto it = out_tm.begin(); it != out_tm.end(); it++){
-		std::cout << "Plane " << (it - out_tm.begin()) << std::endl;
+	std::vector<std::vector<std::vector<REAL>>> out_planes = out_p.first;
+	for(auto it = out_planes.begin(); it != out_planes.end(); it++){
+		std::cout << "Plane " << (it - out_planes.begin()) << std::endl;
 		print((*it)[0].begin(), (*it)[0].end());
 		print((*it)[1].begin(), (*it)[1].end());
 	}

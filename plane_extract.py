@@ -58,8 +58,8 @@ inds = np.array(infl_tm.indices).reshape(-1, 3)
 # print(v)
 # for vert in v:
 #     primitives.sphere(0.01, vert, world=world).appearance().setColor(*np.random.rand((3)))
-
-planes = np.array(merge_triangle_mesh.merge_triangle_mesh(v, inds, 0.5))
+ret_val = merge_triangle_mesh.merge_triangle_mesh(v, inds, 0.5)
+planes = np.array(ret_val[0])
 for p in planes:
     c = np.random.rand((3))
     primitives.sphere(0.01, p[1], world=world).appearance().setColor(*c)

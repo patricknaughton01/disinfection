@@ -173,7 +173,9 @@ void PlaneFinder::load_triangle_mesh(
 		norm /= 2.0 * area;
 		std::vector<REAL> vnorm(norm.data(), norm.data() + norm.size());
 		std::vector<REAL> vcen(cen.data(), cen.data() + cen.size());
-		std::shared_ptr<Plane> p = std::make_shared<Plane>(vnorm, vcen, area);
+		std::list<plane_id> tri_list(1, tri_ind);
+		std::shared_ptr<Plane> p = std::make_shared<Plane>(vnorm, vcen,
+			tri_list, area);
 		planes.insert(p);
 		t_to_plane[tri_ind] = p;
 		vmap[ind0].push_back(tri_ind);

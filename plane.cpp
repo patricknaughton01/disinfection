@@ -1,4 +1,5 @@
 #include <vector>
+#include <list>
 #include <iostream>
 #include "plane.h"
 #include "helper.h"
@@ -9,20 +10,22 @@ Plane::Plane():area(0){
 	init_id();
 }
 
-Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c, REAL a):norm(n),
-	centroid(c), area(a){
-	init_id();
-	normalize_vector(norm);
-}
-
 Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c,
-	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
-	WeakDerefCompare> &neigh, REAL a):norm(n), centroid(c), neighbors(neigh),
-	area(a)
+	std::list<plane_id> &t, REAL a):norm(n),
+	centroid(c), triangles(t), area(a)
 {
 	init_id();
 	normalize_vector(norm);
 }
+
+// Plane::Plane(std::vector<REAL> &n, std::vector<REAL> &c,
+// 	std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
+// 	WeakDerefCompare> &neigh, REAL a):norm(n), centroid(c), neighbors(neigh),
+// 	area(a)
+// {
+// 	init_id();
+// 	normalize_vector(norm);
+// }
 
 void Plane::init_id(){
 	id = gen_id;
@@ -36,6 +39,7 @@ void Plane::merge(std::shared_ptr<Plane> other){
 	area += other->area;
 	neighbor_union(other);
 	neighbors.erase(other);
+	triangles.splice(triangles.begin(), other->triangles);
 }
 
 void Plane::neighbor_union(std::shared_ptr<Plane> other){
@@ -74,6 +78,10 @@ const std::unordered_set<std::weak_ptr<Plane>, WeakPointerHash,
 	WeakDerefCompare>& Plane::get_neighbors() const
 {
 	return neighbors;
+}
+
+const std::list<plane_id>& Plane::get_triangles() const{
+	return triangles;
 }
 
 plane_id Plane::get_id() const{
