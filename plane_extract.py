@@ -60,10 +60,13 @@ inds = np.array(infl_tm.indices).reshape(-1, 3)
 #     primitives.sphere(0.01, vert, world=world).appearance().setColor(*np.random.rand((3)))
 ret_val = merge_triangle_mesh.merge_triangle_mesh(v, inds, 0.5)
 planes = np.array(ret_val[0])
-for p in planes:
+triangles = ret_val[1]
+colors = np.zeros((len(inds), 4))
+colors[:, 3] = 1
+for i, p in enumerate(planes):
     c = np.random.rand((3))
-    primitives.sphere(0.01, p[1], world=world).appearance().setColor(*c)
-    primitives.sphere(0.01, p[1]+p[0], world=world).appearance().setColor(*c)
+    # primitives.sphere(0.01, p[1], world=world).appearance().setColor(*c)
+    # primitives.sphere(0.01, p[1]+p[0], world=world).appearance().setColor(*c)
     z_hat = np.array([0,0,1])
     rot_axis = np.cross(z_hat, p[0])
     theta = np.linalg.norm(rot_axis)
@@ -75,10 +78,15 @@ for p in planes:
         R = math.so3.from_axis_angle((rot_axis, theta))
     else:
         R = np.eye(3).flatten()
-    primitives.box(1, 1, 0.001, R=R, t=p[1],
-        world=world).appearance().setColor(*c, 0.25)
-    primitives.box(0.001, 0.001, 1, R=R, t=p[1] + math.so3.apply(R, 0.5*z_hat),
-        world=world).appearance().setColor(*c)
+    # primitives.box(1, 1, 0.001, R=R, t=p[1],
+    #     world=world).appearance().setColor(*c, 0.25)
+    # primitives.box(0.001, 0.001, 1, R=R, t=p[1] + math.so3.apply(R, 0.5*z_hat),
+    #     world=world).appearance().setColor(*c)
+
+    for tri in triangles[i]:
+        colors[tri, :3] = c + 0.1*np.random.rand(3)
+colorize.colorize(inflated_obj, colors,
+    feature="faces")
 print("Number of planes found: ", len(planes))
 vis.add("world", world)
 vis.debug(world)
