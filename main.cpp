@@ -73,6 +73,7 @@ int main(){
 	inds[10].push_back(1);
 	inds[11].push_back(4);
 	inds[0][0] = 8;
+	dedup_triangle_mesh(v, inds);
 	std::pair<std::vector<std::vector<std::vector<REAL>>>,
 		std::vector<std::vector<plane_id>>> out_p = merge_triangle_mesh(
 			v, inds, 0.5

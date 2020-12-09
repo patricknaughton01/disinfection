@@ -10,3 +10,8 @@ std::pair<std::vector<std::vector<std::vector<REAL>>>,
 	std::vector<std::vector<size_t>> &inds,
 	REAL threshold
 );
+
+std::pair<std::vector<std::vector<REAL>>, std::vector<std::vector<size_t>>>
+	dedup_triangle_mesh(
+		std::vector<std::vector<REAL>> &vertices,
+		std::vector<std::vector<size_t>> &inds);

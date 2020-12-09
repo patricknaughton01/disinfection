@@ -50,6 +50,7 @@ inflated_obj.appearance().setColor(0,1,1)
 infl_tm = inflated_obj.geometry().getTriangleMesh()
 v = np.array(infl_tm.vertices).reshape(-1, 3)
 inds = np.array(infl_tm.indices).reshape(-1, 3)
+v, inds = merge_triangle_mesh.dedup_triangle_mesh(v, inds)
 # colorize.colorize(inflated_obj, np.random.rand((len(inds))),
 #     colormap="jet", feature="faces")
 # print("Number of triangles: ", len(inds))

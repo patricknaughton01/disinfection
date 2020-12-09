@@ -5,6 +5,7 @@
 #include <memory>
 #include <map>
 #include <unordered_map>
+#include <KrisLibrary/meshing/TriMesh.h>
 #include "helper.h"
 #include "plane.h"
 
@@ -17,14 +18,13 @@ private:
 		PairDerefCompare> locs;
 	void clean_neighbors(std::shared_ptr<plane_pair> ppair);
 	void clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Plane> p2);
-	void dedup_triangle_mesh(std::vector<std::vector<REAL>> &vertices,
-		std::vector<std::vector<size_t>> &inds);
 public:
 	plane_set planes;
 	PlaneFinder();
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);
-	void load_triangle_mesh(std::vector<std::vector<REAL>> &vertices,
-		std::vector<std::vector<size_t>> &inds);
+	void get_heightmaps(Meshing::TriMesh mesh);
+	void load_triangle_mesh(const std::vector<std::vector<REAL>> &vertices,
+		const std::vector<std::vector<size_t>> &inds);
 	void init_pq();
 };

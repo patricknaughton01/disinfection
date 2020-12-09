@@ -10,8 +10,6 @@
 #include <stack>
 #include <cmath>
 #include <Eigen/Dense>
-#include <KrisLibrary/geometry/KDTree.h>
-#include <KrisLibrary/math/VectorTemplate.h>
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
@@ -151,10 +149,9 @@ void PlaneFinder::clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Pla
  * some performance hit.
  */
 void PlaneFinder::load_triangle_mesh(
-	std::vector<std::vector<REAL>> &vertices,
-	std::vector<std::vector<size_t>> &inds)
+	const std::vector<std::vector<REAL>> &vertices,
+	const std::vector<std::vector<size_t>> &inds)
 {
-	dedup_triangle_mesh(vertices, inds);
 	std::vector<size_t> tmp;
 	// Map vertex i (row) to the triangle indices it borders
 	std::vector<std::vector<size_t>> vmap(vertices.size(), tmp);
@@ -216,55 +213,6 @@ void PlaneFinder::load_triangle_mesh(
 	}
 	std::cout << "Found " << defective << " defective triangles out of "
 		<< planes.size() << std::endl;
-}
-
-void PlaneFinder::dedup_triangle_mesh(
-	std::vector<std::vector<REAL>> &vertices,
-	std::vector<std::vector<size_t>> &inds)
-{
-	// Make a set of vertices (without duplicates)
-	std::unordered_map<std::vector<REAL>, size_t, VectorHash> map_verts;
-	std::unordered_map<size_t, size_t> ind_to_newind;
-	// deduplicated vertices
-	std::vector<std::vector<REAL>> dd_verts;
-	Geometry::KDTree lookup_tree;
-	for(auto it = vertices.begin(); it != vertices.end(); it++){
-		size_t ind = it - vertices.begin();
-		Math::VectorTemplate<REAL> test_vec(*it);
-		REAL dist;
-		bool repeat = false;
-		size_t new_ind = dd_verts.size();
-		if(lookup_tree.TreeSize() > 0){
-			size_t lookup_id = lookup_tree.ClosestPoint(test_vec, dist);
-			if(dist < 1e-5){
-				repeat = true;
-				new_ind = ind_to_newind[lookup_id];
-			}
-		}
-		ind_to_newind[ind] = new_ind;
-		lookup_tree.Insert(test_vec, ind);
-		if(!repeat){
-			dd_verts.push_back(*it);
-		}
-	}
-
-	// Fixup the indices vector using the two maps:
-	// old_index -> set_iterator -> new_index
-	for(auto ind_it = inds.begin(); ind_it != inds.end(); ind_it++){
-		for(auto it = ind_it->begin(); it != ind_it->end(); it++){
-			*it = ind_to_newind[*it];
-		}
-	}
-	// Update with the cleaned vertices
-	vertices = dd_verts;
-	std::cout << "Dedup Verts: " << std::endl;
-	for(auto it = dd_verts.begin(); it != dd_verts.end(); it++){
-		print(it->begin(), it->end());
-	}
-	std::cout << "Dedup Inds: " << std::endl;
-	for(auto it = inds.begin(); it != inds.end(); it++){
-		print(it->begin(), it->end());
-	}
 }
 
 PlaneFinder::PlaneFinder(){}
