@@ -10,6 +10,8 @@
 #include <stack>
 #include <cmath>
 #include <Eigen/Dense>
+#include <KrisLibrary/geometry/KDTree.h>
+#include <KrisLibrary/math/VectorTemplate.h>
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
@@ -225,31 +227,25 @@ void PlaneFinder::dedup_triangle_mesh(
 	std::unordered_map<size_t, size_t> ind_to_newind;
 	// deduplicated vertices
 	std::vector<std::vector<REAL>> dd_verts;
+	Geometry::KDTree lookup_tree;
 	for(auto it = vertices.begin(); it != vertices.end(); it++){
 		size_t ind = it - vertices.begin();
-		// N^2 algorithm for now, could speed up with kdtree
+		Math::VectorTemplate<REAL> test_vec(*it);
+		REAL dist;
 		bool repeat = false;
-		size_t new_ind = 0;
-		for(auto d_it = dd_verts.begin(); d_it != dd_verts.end(); d_it++){
-			if(get_dist(*it, *d_it) < 1e-5){
+		size_t new_ind = dd_verts.size();
+		if(lookup_tree.TreeSize() > 0){
+			size_t lookup_id = lookup_tree.ClosestPoint(test_vec, dist);
+			if(dist < 1e-5){
 				repeat = true;
-				break;
+				new_ind = ind_to_newind[lookup_id];
 			}
-			new_ind++;
 		}
 		ind_to_newind[ind] = new_ind;
+		lookup_tree.Insert(test_vec, ind);
 		if(!repeat){
 			dd_verts.push_back(*it);
 		}
-		// if(map_verts.find(*it) == map_verts.end()){
-		// 	map_verts[*it] = new_ind;
-		// 	dd_verts.push_back(*it);
-		// 	ind_to_newind[ind] = new_ind;
-		// 	new_ind++;
-		// }else{
-		// 	std::cout << "------------------FOUND REPEAT VERTEX------------------" << std::endl;
-		// 	ind_to_newind[ind] = map_verts[*it];
-		// }
 	}
 
 	// Fixup the indices vector using the two maps:
