@@ -38,7 +38,7 @@ world = klampt.WorldModel()
 
 obj = world.makeRigidObject("tm")
 g = obj.geometry()
-g.loadFile("rod.off")
+g.loadFile("meshes/rod.off")
 offset = 0.1
 g.setCollisionMargin(offset)
 vg = g.convert("VolumeGrid", 0.1)
