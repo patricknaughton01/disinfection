@@ -43,7 +43,7 @@ offset = 0.1
 g.setCollisionMargin(offset)
 vg = g.convert("VolumeGrid", 0.1)
 g.setCollisionMargin(0)
-obj.appearance().setColor(0,0,0,0)
+obj.appearance().setColor(1,0,0,1)
 inflated_obj = world.makeRigidObject("itm")
 inflated_obj.geometry().set(vg.convert("TriangleMesh"))
 inflated_obj.appearance().setColor(0,1,1)

@@ -18,13 +18,17 @@ private:
 		PairDerefCompare> locs;
 	void clean_neighbors(std::shared_ptr<plane_pair> ppair);
 	void clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Plane> p2);
+	std::vector<std::vector<REAL>> i_vertices;
+	std::vector<std::vector<size_t>> i_inds;
+	std::vector<std::vector<REAL>> i_normals;
+	std::vector<std::vector<REAL>> i_centroids;
 public:
 	plane_set planes;
 	PlaneFinder();
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);
 	void get_heightmaps(Meshing::TriMesh mesh);
-	void load_triangle_mesh(const std::vector<std::vector<REAL>> &vertices,
-		const std::vector<std::vector<size_t>> &inds);
+	void load_triangle_mesh(std::vector<std::vector<REAL>> &vertices,
+		std::vector<std::vector<size_t>> &inds);
 	void init_pq();
 };

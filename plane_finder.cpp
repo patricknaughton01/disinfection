@@ -149,9 +149,11 @@ void PlaneFinder::clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Pla
  * some performance hit.
  */
 void PlaneFinder::load_triangle_mesh(
-	const std::vector<std::vector<REAL>> &vertices,
-	const std::vector<std::vector<size_t>> &inds)
+	std::vector<std::vector<REAL>> &vertices,
+	std::vector<std::vector<size_t>> &inds)
 {
+	i_vertices = vertices;
+	i_inds = inds;
 	std::vector<size_t> tmp;
 	// Map vertex i (row) to the triangle indices it borders
 	std::vector<std::vector<size_t>> vmap(vertices.size(), tmp);
@@ -180,6 +182,8 @@ void PlaneFinder::load_triangle_mesh(
 		vmap[ind0].push_back(tri_ind);
 		vmap[ind1].push_back(tri_ind);
 		vmap[ind2].push_back(tri_ind);
+		i_normals.push_back(vnorm);
+		i_centroids.push_back(vcen);
 	}
 
 	for(size_t i = 0; i < inds.size(); i++){
