@@ -10,11 +10,89 @@
 #include <stack>
 #include <cmath>
 #include <Eigen/Dense>
+#include <KrisLibrary/meshing/TriMesh.h>
+#include <KrisLibrary/math3d/primitives.h>
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
+#include "sample_point.h"
+#include "heightmap.h"
 
 #define DEBUG
+
+void PlaneFinder::load_heightmaps(Meshing::TriMesh mesh, REAL spacing,
+	REAL border)
+{
+	typedef std::vector<REAL> vr;
+	for(auto it = planes.begin(); it != planes.end(); it++){
+		std::unordered_set<size_t> tested_v_inds;
+		std::vector<vr> p_verts;
+		vr x_axis;
+		REAL max_len = 0;
+		// Find the farthest point from the origin to make the x-axis
+		for(auto t_iter = (*it)->get_triangles().begin();
+			t_iter != (*it)->get_triangles().end(); t_iter++)
+		{
+			for(auto v_it = i_inds[*t_iter].begin();
+				v_it != i_inds[*t_iter].end(); v_it++)
+			{
+				if(tested_v_inds.find(*v_it) == tested_v_inds.end()){
+					vr target_v = i_vertices[*v_it];
+					vr d = target_v - (*it)->get_centroid();
+					vr n = (*it)->get_norm();
+					vr perp_d = d - (d * n) * n;
+					p_verts.push_back(perp_d);
+					REAL dist = get_norm(perp_d);
+					if(dist > max_len){
+						max_len = dist;
+						normalize_vector(perp_d);
+						x_axis = perp_d;
+					}
+					tested_v_inds.insert(*v_it);
+				}
+			}
+		}
+		// Construct the right-handed y-axis
+		vr y_axis = cross((*it)->get_norm(), x_axis);
+		normalize_vector(y_axis);
+		// Find bounding box of the points
+		REAL max_x = 0, min_x = 0, max_y = 0, min_y = 0;
+		for(size_t i = 0; i < p_verts.size(); i++){
+			REAL x_val = p_verts[i] * x_axis;
+			if(x_val > max_x){
+				max_x = x_val;
+			}
+			if(x_val < min_x){
+				min_x = x_val;
+			}
+			REAL y_val = get_norm(p_verts[i] - (x_val * x_axis));
+			if(y_val > max_y){
+				max_y = y_val;
+			}
+			if(y_val < min_y){
+				min_y = y_val;
+			}
+		}
+		size_t num_x = ((size_t)std::ceil((max_x - min_x + 2 * border)
+			/ spacing));
+		size_t num_y = ((size_t)std::ceil((max_y - min_y + 2 * border)
+			/ spacing));
+		size_t ao_x = ((size_t)((min_x + border) / spacing));
+		size_t ao_y = ((size_t)((max_y + border) / spacing));
+		std::vector<std::vector<SamplePoint>> sample_points;
+		std::vector<vr> axes{x_axis, y_axis, (*it)->get_norm()};
+		Heightmap hm((*it)->get_centroid(), axes, spacing, border,
+			std::pair<size_t, size_t>(ao_x, ao_y));
+		for(size_t i = 0; i < num_y; i++){
+			std::vector<SamplePoint> row;
+			for(size_t j = 0; j < num_x; j++){
+				REAL x_val = (j - ao_x) * spacing;
+				REAL y_val = (i - ao_y) * spacing;
+				REAL z_val = 0;
+			}
+		}
+	}
+}
 
 void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 {

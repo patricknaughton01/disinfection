@@ -21,7 +21,6 @@ std::pair<std::vector<std::vector<std::vector<REAL>>>,
 	plane_set out;
 	pf.simplify_planes(out, threshold);
 	std::cout << "Simplified planes" << std::endl;
-	// TODO: Can I return this by reference to python? Or via a shared_ptr?
 	std::vector<std::vector<std::vector<REAL>>> ret;
 	std::vector<std::vector<plane_id>> ret_tris;
 	for(auto iter = out.begin(); iter != out.end(); iter++){

@@ -1,6 +1,7 @@
-
 #include <vector>
 #include <cmath>
+#include <sstream>
+#include <exception>
 #include "helper.h"
 
 /*
@@ -47,4 +48,19 @@ void divide_vector(std::vector<REAL> &a, REAL d){
 void normalize_vector(std::vector<REAL> &a){
 	REAL n = get_norm(a);
 	divide_vector(a, n);
+}
+
+std::vector<REAL> cross(const std::vector<REAL> &a, const std::vector<REAL> &b){
+	assert_len_equal(a, b);
+	if(a.size() != 3){
+		std::stringstream ss;
+		ss << "Error in cross, length of a does "
+			<< "not equal 3 (a.size = " << a.size() << ")";
+		throw std::length_error(ss.str());
+	}
+	std::vector<REAL> r;
+	r.push_back(a[1]*b[2] - a[2]*b[1]);
+	r.push_back(a[2]*b[0] - a[0]*b[2]);
+	r.push_back(a[0]*b[1] - a[1]*b[0]);
+	return r;
 }

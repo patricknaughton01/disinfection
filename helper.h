@@ -17,6 +17,7 @@ REAL get_norm(const std::vector<REAL> &a);
 REAL get_dist(const std::vector<REAL> &a, const std::vector<REAL> &b);
 void divide_vector(std::vector<REAL> &a, REAL d);
 void normalize_vector(std::vector<REAL> &a);
+std::vector<REAL> cross(const std::vector<REAL> &a, const std::vector<REAL> &b);
 
 template <class T>
 void print(T s, T e){
@@ -107,3 +108,48 @@ struct VectorHash {
 		return seed;
 	}
 };
+
+template<typename T>
+std::vector<T> operator+(const std::vector<T> &a, const std::vector<T> &b){
+	assert_len_equal(a, b);
+	std::vector<T> r;
+	for(size_t i = 0; i < a.size(); i++){
+		r.push_back(a[i] + b[i]);
+	}
+	return r;
+}
+
+template<typename T>
+std::vector<T> operator*(const T &a, const std::vector<T> &b){
+	std::vector<T> r;
+	for(size_t i = 0; i < b.size(); i++){
+		r.push_back(a * b[i]);
+	}
+	return r;
+}
+
+template<typename T>
+std::vector<T> operator*(const std::vector<T> &b, const T &a){
+	return a*b;
+}
+
+template<typename T>
+std::vector<T> operator/(const std::vector<T> &b, const T &a){
+	return  (((T)1)/a) * b;
+}
+
+template<typename T>
+std::vector<T> operator-(const std::vector<T> &a, const std::vector<T> &b){
+	assert_len_equal(a, b);
+	return a + (-((T)1) * b);
+}
+
+template<typename T>
+T operator*(const std::vector<T> &a, const std::vector<T> &b){
+	assert_len_equal(a, b);
+	T r = 0;
+	for(size_t i = 0; i < a.size(); i++){
+		r += a[i] * b[i];
+	}
+	return r;
+}
