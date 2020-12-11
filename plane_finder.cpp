@@ -9,9 +9,12 @@
 #include <memory>
 #include <stack>
 #include <cmath>
+#include <limits>
 #include <Eigen/Dense>
 #include <KrisLibrary/meshing/TriMesh.h>
 #include <KrisLibrary/math3d/primitives.h>
+#include <KrisLibrary/math3d/Ray3D.h>
+#include <KrisLibrary/utils/IntTriple.h>
 #include "helper.h"
 #include "plane.h"
 #include "plane_finder.h"
@@ -81,7 +84,8 @@ void PlaneFinder::load_heightmaps(Meshing::TriMesh mesh, REAL spacing,
 		size_t ao_y = ((size_t)((max_y + border) / spacing));
 		std::vector<std::vector<SamplePoint>> sample_points;
 		std::vector<vr> axes{x_axis, y_axis, (*it)->get_norm()};
-		Heightmap hm((*it)->get_centroid(), axes, spacing, border,
+		std::shared_ptr<Heightmap> hm = std::make_shared<Heightmap>(
+			(*it)->get_centroid(), axes, spacing, border,
 			std::pair<size_t, size_t>(ao_x, ao_y));
 		for(size_t i = 0; i < num_y; i++){
 			std::vector<SamplePoint> row;
@@ -89,8 +93,49 @@ void PlaneFinder::load_heightmaps(Meshing::TriMesh mesh, REAL spacing,
 				REAL x_val = (j - ao_x) * spacing;
 				REAL y_val = (i - ao_y) * spacing;
 				REAL z_val = 0;
+				Math3D::Vector3 plane_point(x_val, y_val, z_val);
+				Math3D::Vector3 world_point;
+				hm->trans.mulPoint(plane_point, world_point);
+				Math3D::Vector3 direction(hm->world_axes[2].data());
+				Math3D::Ray3D r1;
+				Math3D::Ray3D r2;
+				r1.source = world_point;
+				r2.source = world_point;
+				r1.direction = direction;
+				r2.direction = -direction;
+				Math3D::Vector3 hit1;
+				Math3D::Vector3 hit2;
+				int res1 = inflated_mesh.RayCast(r1, hit1);
+				int res2 = inflated_mesh.RayCast(r2, hit2);
+				bool valid_hit = false;
+				REAL d1 = std::numeric_limits<double>::infinity();
+				REAL d2 = d1;
+				if(res1 > -1 && (i_normals[res1] * hm->world_axes[2]) > 0){
+					valid_hit = true;
+					d1 = (hit1 - world_point).norm();
+				}
+				if(res2 > -1 && (i_normals[res2] * hm->world_axes[2]) > 0){
+					valid_hit = true;
+					d2 = (hit2 - world_point).norm();
+				}
+				SamplePoint pt;
+				if(valid_hit){
+					if(d1 < d2){
+						pt = SamplePoint(
+							Math3D::Vector3(i_normals[res1].data()),
+							hit1, true);
+					}else{
+						pt = SamplePoint(
+							Math3D::Vector3(i_normals[res2].data()),
+							hit2, true);
+					}
+				}
+				row.push_back(pt);
 			}
+			sample_points.push_back(row);
 		}
+		hm->sample_points = sample_points;
+		heightmaps[*it] = hm;
 	}
 }
 
@@ -237,11 +282,14 @@ void PlaneFinder::load_triangle_mesh(
 	std::vector<std::vector<size_t>> vmap(vertices.size(), tmp);
 	// Map triangle indices to (pointers to ) planes
 	std::unordered_map<size_t, std::shared_ptr<Plane>> t_to_plane;
+	std::vector<Math3D::Vector3> krislibrary_verts;
+	std::vector<IntTriple> krislibrary_inds;
 
 	for(auto iter = inds.begin(); iter != inds.end(); iter++){
 		size_t tri_ind = iter - inds.begin();
 		// Compute geometric properties of planes
 		size_t ind0 = (*iter)[0], ind1 = (*iter)[1], ind2 = (*iter)[2];
+		krislibrary_inds.push_back(IntTriple(ind0, ind1, ind2));
 		// IMPROVE: Could remove Eigen dependency by refactoring just this part.
 		Eigen::Vector3d a(vertices[ind0].data());
 		Eigen::Vector3d b(vertices[ind1].data());
@@ -284,17 +332,12 @@ void PlaneFinder::load_triangle_mesh(
 			}
 		}
 	}
-	int defective = 0;
-	for(auto it = planes.begin(); it != planes.end(); it++){
-		if((*it)->get_neighbors().size() != 3){
-			std::cout << "Found plane without three neighbors" << std::endl;
-			std::cout << **it;
-			std::cout << " has " << (*it)->get_neighbors().size() << " neighbors" << std::endl;
-			defective++;
-		}
+	// Construct list of vertices for inflated_mesh
+	for(auto it = vertices.begin(); it != vertices.end(); it++){
+		krislibrary_verts.push_back(Math3D::Vector3(it->data()));
 	}
-	std::cout << "Found " << defective << " defective triangles out of "
-		<< planes.size() << std::endl;
+	inflated_mesh.verts = krislibrary_verts;
+	inflated_mesh.tris = krislibrary_inds;
 }
 
 PlaneFinder::PlaneFinder(){}

@@ -10,6 +10,7 @@ using Math3D::Vector3;
 
 class Heightmap{
 private:
+public:
 	std::vector<REAL> origin;
 	std::vector<std::vector<REAL>> world_axes;
 	REAL spacing;
@@ -17,9 +18,8 @@ private:
 	// x, y; i.e., col, row
 	std::pair<size_t, size_t> arr_origin;
 	Math3D::RigidTransform trans;
-public:
 	std::vector<std::vector<SamplePoint>> sample_points;
-	Heightmap():spacing(0), border(0){};
+	Heightmap():spacing(0), border(0){}
 	Heightmap(std::vector<REAL> o, std::vector<std::vector<REAL>> w,
 		REAL s, REAL b, std::pair<size_t, size_t> ao):
 		origin(o), world_axes(w), spacing(s), border(b), arr_origin(ao),

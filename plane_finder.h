@@ -24,7 +24,8 @@ private:
 	std::vector<std::vector<size_t>> i_inds;
 	std::vector<std::vector<REAL>> i_normals;
 	std::vector<std::vector<REAL>> i_centroids;
-	std::unordered_map<std::shared_ptr<Plane>, std::unique_ptr<Heightmap>>
+	Meshing::TriMesh inflated_mesh;
+	std::unordered_map<std::shared_ptr<Plane>, std::shared_ptr<Heightmap>>
 		heightmaps;
 public:
 	PlaneFinder();
