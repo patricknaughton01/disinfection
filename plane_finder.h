@@ -27,11 +27,14 @@ private:
 	Meshing::TriMesh inflated_mesh;
 	std::unordered_map<std::shared_ptr<Plane>, std::shared_ptr<Heightmap>>
 		heightmaps;
+	friend std::pair<std::vector<std::vector<std::vector<Math3D::Vector3>>>,
+		std::vector<std::vector<std::vector<Math3D::Vector3>>>> get_heightmaps(
+		PlaneFinder pf, REAL spacing, REAL border);
 public:
 	PlaneFinder();
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);
-	void load_heightmaps(Meshing::TriMesh mesh, REAL spacing, REAL border);
+	void load_heightmaps(REAL spacing, REAL border);
 	void load_triangle_mesh(std::vector<std::vector<REAL>> &vertices,
 		std::vector<std::vector<size_t>> &inds);
 	void init_pq();

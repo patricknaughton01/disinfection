@@ -74,9 +74,10 @@ int main(){
 	inds[11].push_back(4);
 	inds[0][0] = 8;
 	dedup_triangle_mesh(v, inds);
+	PlaneFinder pf;
 	std::pair<std::vector<std::vector<std::vector<REAL>>>,
 		std::vector<std::vector<plane_id>>> out_p = merge_triangle_mesh(
-			v, inds, 0.5
+			pf, v, inds, 0.5
 	);
 	std::vector<std::vector<std::vector<REAL>>> out_planes = out_p.first;
 	for(auto it = out_planes.begin(); it != out_planes.end(); it++){

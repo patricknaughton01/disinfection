@@ -59,7 +59,8 @@ v, inds = merge_triangle_mesh.dedup_triangle_mesh(v, inds)
 # print(v)
 # for vert in v:
 #     primitives.sphere(0.01, vert, world=world).appearance().setColor(*np.random.rand((3)))
-ret_val = merge_triangle_mesh.merge_triangle_mesh(v, inds, 0.3)
+my_pf = merge_triangle_mesh.get_empty_plane_finder()
+ret_val = merge_triangle_mesh.merge_triangle_mesh(my_pf, v, inds, 0.3)
 planes = np.array(ret_val[0])
 triangles = ret_val[1]
 colors = np.zeros((len(inds), 4))

@@ -23,7 +23,7 @@
 
 #define DEBUG
 
-void PlaneFinder::load_heightmaps(Meshing::TriMesh mesh, REAL spacing,
+void PlaneFinder::load_heightmaps(REAL spacing,
 	REAL border)
 {
 	typedef std::vector<REAL> vr;
@@ -141,6 +141,11 @@ void PlaneFinder::load_heightmaps(Meshing::TriMesh mesh, REAL spacing,
 
 void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 {
+	// TODO: kind of sketchy that out gets shared_ptrs to planes inside the
+	// internal (private) planes field, meaning someone else could modify the
+	// planes in planes without permission. Perhaps could be fixed by making
+	// out a set of pointers to const Planes so that it can't be used to modify
+	// them? Then we have to definitely change the setting of planes to out.
 	pq.clear();
 	locs.clear();
 	init_pq();
@@ -196,6 +201,7 @@ void PlaneFinder::simplify_planes(plane_set &out, REAL thresh)
 		}
 		min_iter = pq.begin();
 	}
+	planes = out;
 	#ifdef DEBUG
 		std::cout << "Final pq:" << std::endl;
 		for(auto iter = pq.begin(); iter != pq.end(); iter++){
