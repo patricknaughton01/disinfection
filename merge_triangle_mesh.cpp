@@ -17,17 +17,14 @@ PlaneFinder get_empty_plane_finder(){
 std::pair<std::vector<std::vector<std::vector<REAL>>>,
 	std::vector<std::vector<plane_id>>>
 	merge_triangle_mesh(
-	PlaneFinder pf,
+	PlaneFinder &pf,
 	std::vector<std::vector<REAL>> &vertices,
 	std::vector<std::vector<size_t>> &inds,
 	REAL threshold)
 {
-	std::cout << "Started" << std::endl;
 	pf.load_triangle_mesh(vertices, inds);
-	std::cout << "Loaded TM" << std::endl;
 	plane_set out;
 	pf.simplify_planes(out, threshold);
-	std::cout << "Simplified planes" << std::endl;
 	std::vector<std::vector<std::vector<REAL>>> ret;
 	std::vector<std::vector<plane_id>> ret_tris;
 	for(auto iter = out.begin(); iter != out.end(); iter++){
@@ -42,31 +39,30 @@ std::pair<std::vector<std::vector<std::vector<REAL>>>,
 		}
 		ret_tris.push_back(tmp);
 	}
-	std::cout << "Reconstructed planes" << std::endl;
 	return std::pair<std::vector<std::vector<std::vector<REAL>>>,
 		std::vector<std::vector<plane_id>>>(ret, ret_tris);
 }
 
-std::pair<std::vector<std::vector<std::vector<Math3D::Vector3>>>,
-	std::vector<std::vector<std::vector<Math3D::Vector3>>>> get_heightmaps(
-	PlaneFinder pf, REAL spacing, REAL border)
+std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
+	std::vector<std::vector<std::vector<std::vector<REAL>>>>> get_heightmaps(
+	PlaneFinder &pf, REAL spacing, REAL border)
 {
 	// Return a pair containing the normal information for each plane and the
 	// true world point for each plane
-	std::vector<std::vector<std::vector<Math3D::Vector3>>> norms;
-	std::vector<std::vector<std::vector<Math3D::Vector3>>> w_pts;
+	std::vector<std::vector<std::vector<std::vector<REAL>>>> norms;
+	std::vector<std::vector<std::vector<std::vector<REAL>>>> w_pts;
 	pf.load_heightmaps(spacing, border);
 	for(auto it = pf.planes.begin(); it != pf.planes.end(); it++){
 		auto hm = pf.heightmaps[*it];
-		std::vector<std::vector<Math3D::Vector3>> p_norms;
-		std::vector<std::vector<Math3D::Vector3>> p_w_pts;
+		std::vector<std::vector<std::vector<REAL>>> p_norms;
+		std::vector<std::vector<std::vector<REAL>>> p_w_pts;
 		for(size_t i = 0; i < hm->sample_points.size(); i++){
-			std::vector<Math3D::Vector3> row_n;
-			std::vector<Math3D::Vector3> row_w;
+			std::vector<std::vector<REAL>> row_n;
+			std::vector<std::vector<REAL>> row_w;
 			for(size_t j = 0; j < hm->sample_points[i].size(); j++){
 				SamplePoint sp = hm->sample_points[i][j];
-				row_n.push_back(sp.normal);
-				row_w.push_back(sp.world_point);
+				row_n.push_back(to_std(sp.normal));
+				row_w.push_back(to_std(sp.world_point));
 			}
 			p_norms.push_back(row_n);
 			p_w_pts.push_back(row_w);
@@ -74,8 +70,12 @@ std::pair<std::vector<std::vector<std::vector<Math3D::Vector3>>>,
 		norms.push_back(p_norms);
 		w_pts.push_back(p_w_pts);
 	}
-	return std::pair<std::vector<std::vector<std::vector<Math3D::Vector3>>>,
-		std::vector<std::vector<std::vector<Math3D::Vector3>>>>(norms, w_pts);
+	return std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
+		std::vector<std::vector<std::vector<std::vector<REAL>>>>>(norms, w_pts);
+}
+
+std::vector<REAL> to_std(Math3D::Vector3 v){
+	return std::vector<REAL>{v.x, v.y, v.z};
 }
 
 std::pair<std::vector<std::vector<REAL>>, std::vector<std::vector<size_t>>>
@@ -115,14 +115,6 @@ dedup_triangle_mesh(
 		for(auto it = ind_it->begin(); it != ind_it->end(); it++){
 			*it = ind_to_newind[*it];
 		}
-	}
-	std::cout << "Dedup Verts: " << std::endl;
-	for(auto it = dd_verts.begin(); it != dd_verts.end(); it++){
-		print(it->begin(), it->end());
-	}
-	std::cout << "Dedup Inds: " << std::endl;
-	for(auto it = inds.begin(); it != inds.end(); it++){
-		print(it->begin(), it->end());
 	}
 	return std::pair<std::vector<std::vector<REAL>>,
 		std::vector<std::vector<size_t>>>(dd_verts, inds);

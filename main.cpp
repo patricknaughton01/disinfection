@@ -79,12 +79,19 @@ int main(){
 		std::vector<std::vector<plane_id>>> out_p = merge_triangle_mesh(
 			pf, v, inds, 0.5
 	);
+	// std::cout << "Number of planes " << pf.planes.size() << std::endl;
 	std::vector<std::vector<std::vector<REAL>>> out_planes = out_p.first;
 	for(auto it = out_planes.begin(); it != out_planes.end(); it++){
 		std::cout << "Plane " << (it - out_planes.begin()) << std::endl;
 		print((*it)[0].begin(), (*it)[0].end());
 		print((*it)[1].begin(), (*it)[1].end());
 	}
+	// std::cout << "Number of planes " << pf.planes.size() << std::endl;
+	std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
+		std::vector<std::vector<std::vector<std::vector<REAL>>>>> hm =
+		get_heightmaps(pf, 0.3, 0.1);
+	// std::cout << "Number of heightmaps " << hm.first.size() << " "
+	// 	<< hm.second.size() << std::endl;
 	return 0;
 }
 

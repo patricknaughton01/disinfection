@@ -17,7 +17,6 @@ private:
 	typedef decltype(pq.begin()) pq_iter_t;
 	std::unordered_map<std::shared_ptr<plane_pair>, pq_iter_t, PairPointerHash,
 		PairDerefCompare> locs;
-	plane_set planes;
 	void clean_neighbors(std::shared_ptr<plane_pair> ppair);
 	void clean_neighbors(std::shared_ptr<Plane> p1, std::shared_ptr<Plane> p2);
 	std::vector<std::vector<REAL>> i_vertices;
@@ -27,10 +26,11 @@ private:
 	Meshing::TriMesh inflated_mesh;
 	std::unordered_map<std::shared_ptr<Plane>, std::shared_ptr<Heightmap>>
 		heightmaps;
-	friend std::pair<std::vector<std::vector<std::vector<Math3D::Vector3>>>,
-		std::vector<std::vector<std::vector<Math3D::Vector3>>>> get_heightmaps(
-		PlaneFinder pf, REAL spacing, REAL border);
+	friend std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
+		std::vector<std::vector<std::vector<std::vector<REAL>>>>> get_heightmaps(
+		PlaneFinder &pf, REAL spacing, REAL border);
 public:
+	plane_set planes;
 	PlaneFinder();
 	PlaneFinder(plane_set &p);
 	void simplify_planes(plane_set &out, REAL thresh);

@@ -2,6 +2,7 @@ import klampt
 import time
 import merge_triangle_mesh
 import numpy as np
+import sys
 
 from klampt import vis
 from klampt.vis import colorize
@@ -34,6 +35,19 @@ def build_triangle_adjacency(verts, inds):
                 break
     return t_neighbors
 
+def get_rot_frame(z_world_target):
+    z_world_target = np.array(z_world_target)
+    if np.linalg.norm(z_world_target) == 0:
+        print(f"Error, z_world_target {z_world_target} has norm 0")
+        sys.exit()
+    y_hat = np.cross(z_world_target, np.array([1, 0, 0]))
+    if np.linalg.norm(y_hat) == 0:
+        y_hat = np.cross(z_world_target, np.array([0, 1, 0]))
+    y_hat = y_hat / np.linalg.norm(y_hat)
+    x_hat = np.cross(y_hat, z_world_target)
+    x_hat = x_hat / np.linalg.norm(x_hat)
+    return np.array([x_hat, y_hat, z_world_target]).T
+
 world = klampt.WorldModel()
 
 obj = world.makeRigidObject("tm")
@@ -43,7 +57,7 @@ offset = 0.1
 g.setCollisionMargin(offset)
 vg = g.convert("VolumeGrid", 0.1)
 g.setCollisionMargin(0)
-obj.appearance().setColor(1,0,0,1)
+obj.appearance().setColor(0,0,0,0)
 inflated_obj = world.makeRigidObject("itm")
 inflated_obj.geometry().set(vg.convert("TriangleMesh"))
 inflated_obj.appearance().setColor(0,1,1)
@@ -60,7 +74,8 @@ v, inds = merge_triangle_mesh.dedup_triangle_mesh(v, inds)
 # for vert in v:
 #     primitives.sphere(0.01, vert, world=world).appearance().setColor(*np.random.rand((3)))
 my_pf = merge_triangle_mesh.get_empty_plane_finder()
-ret_val = merge_triangle_mesh.merge_triangle_mesh(my_pf, v, inds, 0.3)
+ret_val = merge_triangle_mesh.merge_triangle_mesh(my_pf, v, inds, 0.5)
+hm_ret = merge_triangle_mesh.get_heightmaps(my_pf, 0.1, 0.1)
 planes = np.array(ret_val[0])
 triangles = ret_val[1]
 colors = np.zeros((len(inds), 4))
@@ -69,22 +84,22 @@ for i, p in enumerate(planes):
     c = np.random.rand((3))
     # primitives.sphere(0.01, p[1], world=world).appearance().setColor(*c)
     # primitives.sphere(0.01, p[1]+p[0], world=world).appearance().setColor(*c)
-    z_hat = np.array([0,0,1])
-    rot_axis = np.cross(z_hat, p[0])
-    theta = np.linalg.norm(rot_axis)
-    if theta != 0:
-        rot_axis /= theta
-        theta = np.arcsin(theta).item()
-        if z_hat @ p[0] < 0:
-            theta += np.pi
-        R = math.so3.from_axis_angle((rot_axis, theta))
-    else:
-        R = np.eye(3).flatten()
+    R = get_rot_frame(p[0]).T.flatten()
     # primitives.box(1, 1, 0.001, R=R, t=p[1],
     #     world=world).appearance().setColor(*c, 0.25)
-    # primitives.box(0.001, 0.001, 1, R=R, t=p[1] + math.so3.apply(R, 0.5*z_hat),
+    # primitives.box(0.001, 0.001, 1, R=R, t=p[1]
+    #     + math.so3.apply(R, 0.5*np.array([0, 0, 1])),
     #     world=world).appearance().setColor(*c)
-
+    n_map = hm_ret[0][i]
+    wp_map = hm_ret[1][i]
+    for j, row in enumerate(wp_map):
+        for k, val in enumerate(row):
+            R = get_rot_frame(n_map[j][k]).T.flatten()
+            n_len = 0.1
+            primitives.sphere(0.01, val, world=world).appearance().setColor(*c)
+            primitives.box(0.001, 0.001, n_len, R=R, t=np.array(val)
+                + np.array(math.so3.apply(R, (n_len/2)*np.array([0, 0, 1]))),
+                world=world).appearance().setColor(*c)
     for tri in triangles[i]:
         colors[tri, :3] = c + 0.1*np.random.rand(3)
 colorize.colorize(inflated_obj, colors,

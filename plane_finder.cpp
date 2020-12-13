@@ -21,13 +21,13 @@
 #include "sample_point.h"
 #include "heightmap.h"
 
-#define DEBUG
-
 void PlaneFinder::load_heightmaps(REAL spacing,
 	REAL border)
 {
 	typedef std::vector<REAL> vr;
 	for(auto it = planes.begin(); it != planes.end(); it++){
+		std::unordered_set<plane_id> triangles((*it)->get_triangles().begin(),
+			(*it)->get_triangles().end());
 		std::unordered_set<size_t> tested_v_inds;
 		std::vector<vr> p_verts;
 		vr x_axis;
@@ -68,7 +68,7 @@ void PlaneFinder::load_heightmaps(REAL spacing,
 			if(x_val < min_x){
 				min_x = x_val;
 			}
-			REAL y_val = get_norm(p_verts[i] - (x_val * x_axis));
+			REAL y_val = p_verts[i] * y_axis;
 			if(y_val > max_y){
 				max_y = y_val;
 			}
@@ -76,23 +76,26 @@ void PlaneFinder::load_heightmaps(REAL spacing,
 				min_y = y_val;
 			}
 		}
-		size_t num_x = ((size_t)std::ceil((max_x - min_x + 2 * border)
+		int num_x = ((int)std::ceil((max_x - min_x + 2 * border)
 			/ spacing));
-		size_t num_y = ((size_t)std::ceil((max_y - min_y + 2 * border)
+		int num_y = ((int)std::ceil((max_y - min_y + 2 * border)
 			/ spacing));
-		size_t ao_x = ((size_t)((min_x + border) / spacing));
-		size_t ao_y = ((size_t)((max_y + border) / spacing));
+		int ao_x = ((int)((-min_x + border) / spacing));
+		int ao_y = ((int)((max_y + border) / spacing));
+		// std::cout << "ao x: " << ao_x << std::endl;
+		// std::cout << "ao y: " << ao_y << std::endl;
 		std::vector<std::vector<SamplePoint>> sample_points;
 		std::vector<vr> axes{x_axis, y_axis, (*it)->get_norm()};
 		std::shared_ptr<Heightmap> hm = std::make_shared<Heightmap>(
 			(*it)->get_centroid(), axes, spacing, border,
 			std::pair<size_t, size_t>(ao_x, ao_y));
-		for(size_t i = 0; i < num_y; i++){
+		for(int i = 0; i < num_y; i++){
 			std::vector<SamplePoint> row;
-			for(size_t j = 0; j < num_x; j++){
+			for(int j = 0; j < num_x; j++){
 				REAL x_val = (j - ao_x) * spacing;
 				REAL y_val = (i - ao_y) * spacing;
 				REAL z_val = 0;
+				// std::cout << "Local point: " << x_val << " " << y_val << std::endl;
 				Math3D::Vector3 plane_point(x_val, y_val, z_val);
 				Math3D::Vector3 world_point;
 				hm->trans.mulPoint(plane_point, world_point);
@@ -110,11 +113,15 @@ void PlaneFinder::load_heightmaps(REAL spacing,
 				bool valid_hit = false;
 				REAL d1 = std::numeric_limits<double>::infinity();
 				REAL d2 = d1;
-				if(res1 > -1 && (i_normals[res1] * hm->world_axes[2]) > 0){
+				if(res1 > -1 && (i_normals[res1] * hm->world_axes[2]) > 0
+					&& triangles.find(res1) != triangles.end())
+				{
 					valid_hit = true;
 					d1 = (hit1 - world_point).norm();
 				}
-				if(res2 > -1 && (i_normals[res2] * hm->world_axes[2]) > 0){
+				if(res2 > -1 && (i_normals[res2] * hm->world_axes[2]) > 0
+					&& triangles.find(res2) != triangles.end())
+				{
 					valid_hit = true;
 					d2 = (hit2 - world_point).norm();
 				}
@@ -129,6 +136,8 @@ void PlaneFinder::load_heightmaps(REAL spacing,
 							Math3D::Vector3(i_normals[res2].data()),
 							hit2, true);
 					}
+					// std::cout << "Hitpoint: ";
+					// std::cout << pt.world_point.x << " " << pt.world_point.y << " " << pt.world_point.z << std::endl;
 				}
 				row.push_back(pt);
 			}
