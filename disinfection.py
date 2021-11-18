@@ -271,14 +271,14 @@ class WipeSurface:
         self.inds = np.array(self.tm.indices,dtype=np.int32).reshape(
             (len(self.tm.indices)//3,3))
 
-        offset = 0.1
-        self.obj.geometry().setCollisionMargin(offset)
-        vg = self.obj.geometry().convert("VolumeGrid")
-        self.obj.geometry().setCollisionMargin(0)
-        inflated_obj = world.makeRigidObject("itm")
-        inflated_obj.geometry().set(vg.convert("TriangleMesh"))
-        inflated_obj.appearance().setColor(0,1,1, 0.25)
-        self.inflated_obj = inflated_obj
+        # offset = 0.1
+        # self.obj.geometry().setCollisionMargin(offset)
+        # vg = self.obj.geometry().convert("VolumeGrid")
+        # self.obj.geometry().setCollisionMargin(0)
+        # inflated_obj = world.makeRigidObject("itm")
+        # inflated_obj.geometry().set(vg.convert("TriangleMesh"))
+        # inflated_obj.appearance().setColor(0,1,1, 0.25)
+        # self.inflated_obj = inflated_obj
 
         R, t = self.obj.getTransform()
         R = np.array(R).reshape(3, -1).T
@@ -528,6 +528,7 @@ class Wiper:
         self.ray_t = []
         self.opt_t = []
         self.clean_t = []
+        self.setTransform((1,0,0,0,1,0,0,0,1), (0,0,0))
 
     def init_Qy(self):
         diag = 2 * np.ones(self.tot)

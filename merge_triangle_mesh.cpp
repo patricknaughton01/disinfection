@@ -43,15 +43,18 @@ std::pair<std::vector<std::vector<std::vector<REAL>>>,
 		std::vector<std::vector<plane_id>>>(ret, ret_tris);
 }
 
+void build_heightmaps(PlaneFinder &pf, REAL spacing, REAL border){
+	pf.load_heightmaps(spacing, border);
+}
+
 std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
 	std::vector<std::vector<std::vector<std::vector<REAL>>>>> get_heightmaps(
-	PlaneFinder &pf, REAL spacing, REAL border)
+	PlaneFinder &pf)
 {
 	// Return a pair containing the normal information for each plane and the
 	// true world point for each plane
 	std::vector<std::vector<std::vector<std::vector<REAL>>>> norms;
 	std::vector<std::vector<std::vector<std::vector<REAL>>>> w_pts;
-	pf.load_heightmaps(spacing, border);
 	for(auto it = pf.planes.begin(); it != pf.planes.end(); it++){
 		auto hm = pf.heightmaps[*it];
 		std::vector<std::vector<std::vector<REAL>>> p_norms;
@@ -72,6 +75,25 @@ std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
 	}
 	return std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
 		std::vector<std::vector<std::vector<std::vector<REAL>>>>>(norms, w_pts);
+}
+
+std::vector<std::vector<REAL>> get_heightmap_metadata(PlaneFinder &pf){
+	std::vector<std::vector<REAL>> r;
+	for(auto it = pf.planes.begin(); it != pf.planes.end(); it++){
+		auto hm = pf.heightmaps[*it];
+		std::vector<REAL> data{hm->min_x, hm->max_x, hm->min_y, hm->max_y};
+		r.push_back(data);
+	}
+	return r;
+}
+
+std::vector<Heightmap> heightmaps(PlaneFinder &pf){
+	std::vector<Heightmap> r;
+	for(auto it = pf.planes.begin(); it != pf.planes.end(); it++){
+		auto hm = pf.heightmaps[*it];
+		r.push_back(*hm);
+	}
+	return r;
 }
 
 std::vector<REAL> to_std(Math3D::Vector3 v){

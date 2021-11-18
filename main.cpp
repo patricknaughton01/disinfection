@@ -87,9 +87,11 @@ int main(){
 		print((*it)[1].begin(), (*it)[1].end());
 	}
 	// std::cout << "Number of planes " << pf.planes.size() << std::endl;
+	build_heightmaps(pf, 0.3, 0.1);
 	std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
 		std::vector<std::vector<std::vector<std::vector<REAL>>>>> hm =
-		get_heightmaps(pf, 0.3, 0.1);
+		get_heightmaps(pf);
+	std::vector<std::vector<REAL>> data = get_heightmap_metadata(pf);
 	// std::cout << "Number of heightmaps " << hm.first.size() << " "
 	// 	<< hm.second.size() << std::endl;
 	return 0;

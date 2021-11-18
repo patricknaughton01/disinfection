@@ -15,9 +15,15 @@ std::pair<std::vector<std::vector<std::vector<REAL>>>,
 	REAL threshold
 );
 
+void build_heightmaps(PlaneFinder &pf, REAL spacing, REAL border);
+
 std::pair<std::vector<std::vector<std::vector<std::vector<REAL>>>>,
 	std::vector<std::vector<std::vector<std::vector<REAL>>>>> get_heightmaps(
-	PlaneFinder &pf, REAL spacing, REAL border);
+	PlaneFinder &pf);
+
+std::vector<std::vector<REAL>> get_heightmap_metadata(PlaneFinder &pf);
+
+std::vector<Heightmap> heightmaps(PlaneFinder &pf);
 
 std::vector<REAL> to_std(Math3D::Vector3 v);
 

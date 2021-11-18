@@ -87,8 +87,8 @@ void PlaneFinder::load_heightmaps(REAL spacing,
 		std::vector<std::vector<SamplePoint>> sample_points;
 		std::vector<vr> axes{x_axis, y_axis, (*it)->get_norm()};
 		std::shared_ptr<Heightmap> hm = std::make_shared<Heightmap>(
-			(*it)->get_centroid(), axes, spacing, border,
-			std::pair<size_t, size_t>(ao_x, ao_y));
+			(*it)->get_centroid(), axes, spacing, border, min_x, max_x, min_y,
+			max_y, std::pair<size_t, size_t>(ao_x, ao_y));
 		for(int i = 0; i < num_y; i++){
 			std::vector<SamplePoint> row;
 			for(int j = 0; j < num_x; j++){
